@@ -224,7 +224,7 @@ void GPInfoScreen::init()
 
     m_reverse_spinner->setValue( UserConfigParams::m_gp_reverse );
 
-    if (random)
+    if(random)
     {
         RibbonWidget *rb = getWidget<RibbonWidget>("buttons");
         rb->setLabel(1,_(L"Reload") );
@@ -234,35 +234,19 @@ void GPInfoScreen::init()
         // been added or deleted since the last time this screen was shown.
         const std::vector<std::string>& groups = track_manager->getAllTrackGroups();
         m_group_names.clear();
-        m_group_names.push_back("all"); // Add "all" group as first group
-        for (unsigned int i = 0; i < groups.size(); i++)  // Add rest of groups
+        m_group_names.push_back("all");
+        for (unsigned int i = 0; i < groups.size(); i++)
             m_group_names.push_back(groups[i]);
-
         m_group_spinner->clearLabels();
-        int index_standard = 0; // Index value of "standard" category
-
+        int index_standard=0;
         for (unsigned int i = 0; i < m_group_names.size(); i++)
         {
-            if (m_group_names[i] == "all")
-            {
-                // Fix capitalization (#4622)
-                m_group_spinner->addLabel( _("All") );
-            }
-            else if (m_group_names[i] == "standard")
-            {
-                // Set index value of "Standard" category
+            m_group_spinner->addLabel(_(m_group_names[i].c_str()));
+            if (m_group_names[i] == "standard")
                 index_standard = i + 1;
-                // Fix capitalization (#4622)
-                m_group_spinner->addLabel( _("Standard") );
-            }
-            else
-            {
-                m_group_spinner->addLabel(_(m_group_names[i].c_str()));
-            }
         }
-
         // Try to keep a previously selected group value
-        if (m_group_spinner->getValue() >= (int)groups.size())
+        if(m_group_spinner->getValue() >= (int)groups.size())
         {
             m_group_spinner->setValue(index_standard);
             m_group_name = "standard";
@@ -274,7 +258,7 @@ void GPInfoScreen::init()
         m_max_num_tracks = getMaxNumTracks(m_group_name);
 
         m_num_tracks_spinner->setMax(m_max_num_tracks);
-        if (m_num_tracks_spinner->getValue() > m_max_num_tracks ||
+        if(m_num_tracks_spinner->getValue() > m_max_num_tracks ||
             m_num_tracks_spinner->getValue() < 1)
         {
             m_num_tracks_spinner->setValue(m_max_num_tracks);
@@ -291,9 +275,11 @@ void GPInfoScreen::init()
         getWidget<LabelWidget>("name")->setText(m_gp.getName(), false);
         m_gp.checkConsistency();
 
-        m_icon_bank->setScale(1.0f / 128.0f);
-        m_icon_bank->setTargetIconSize(128, 128);
-        m_highscore_list->setIcons(m_icon_bank);
+        int icon_height = GUIEngine::getFontHeight();
+        int row_height = GUIEngine::getFontHeight() * 1.2f;
+        m_icon_bank->setScale(icon_height/128.0f);
+        m_icon_bank->setTargetIconSize(128,128);
+        m_highscore_list->setIcons(m_icon_bank,row_height);
         RaceManager::get()->setNumKarts(RaceManager::get()->getNumLocalPlayers() + m_ai_kart_spinner->getValue());
         // We don't save highscores for random gps so load highscores here
         updateHighscores();
@@ -461,7 +447,7 @@ void GPInfoScreen::onUpdate(float dt)
     screenshot->m_properties[PROP_ICON] = file;
 }   // onUpdate
 
-/** Get number of available tracks for random GPs
+/** Get number of available tracks for random GPs 
  */
 int GPInfoScreen::getMaxNumTracks(std::string group)
 {
@@ -492,7 +478,7 @@ int GPInfoScreen::getMaxNumTracks(std::string group)
                 track_manager->getTrack(tracks[i])->isRaceTrack())
             {
                 max_num_tracks++;
-            }
+            }               
         }
     }
     

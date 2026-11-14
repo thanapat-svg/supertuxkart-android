@@ -1,6 +1,6 @@
 /*
    AngelCode Scripting Library
-   Copyright (c) 2003-2024 Andreas Jonsson
+   Copyright (c) 2003-2021 Andreas Jonsson
 
    This software is provided 'as-is', without any express or implied 
    warranty. In no event will the authors be held liable for any 
@@ -98,6 +98,7 @@ protected:
 	int  AdjustStackPosition(int pos);
 	int  AdjustGetOffset(int offset, asCScriptFunction *func, asDWORD programPos);
 	void CalculateStackNeeded(asCScriptFunction *func);
+	asCScriptFunction *GetCalledFunction(asCScriptFunction *func, asDWORD programPos);
 
 	// Temporary storage for persisting variable data
 	asCArray<int>                usedTypeIds;
@@ -151,9 +152,6 @@ protected:
 		int                 nextTypeId;
 	};
 	asCArray<SListAdjuster*> listAdjusters;
-
-	// Used by FindObjectPropOffset
-	asCObjectProperty* lastCompositeProp;
 };
 
 #ifndef AS_NO_COMPILER
@@ -255,9 +253,6 @@ protected:
 		int                 nextTypeId;
 	};
 	asCArray<SListAdjuster*> listAdjusters;
-
-	// Used by FindObjectPropIndex
-	bool lastWasComposite;
 };
 
 #endif

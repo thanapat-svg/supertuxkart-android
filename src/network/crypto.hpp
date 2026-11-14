@@ -19,9 +19,7 @@
 #ifndef HEADER_CRYPTO_HPP
 #define HEADER_CRYPTO_HPP
 
-#ifdef APPLE_NETWORK_LIBRARIES
-#include "network/crypto_cryptokit.hpp"
-#elif defined(ENABLE_CRYPTO_OPENSSL)
+#ifdef ENABLE_CRYPTO_OPENSSL
 #include "network/crypto_openssl.hpp"
 #else
 #include "network/crypto_mbedtls.hpp"

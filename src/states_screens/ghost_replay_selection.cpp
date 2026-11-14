@@ -20,13 +20,8 @@
 
 #include "config/player_manager.hpp"
 #include "config/user_config.hpp"
-#include "graphics/irr_driver.hpp"
 #include "graphics/material.hpp"
 #include "guiengine/CGUISpriteBank.hpp"
-#include "guiengine/widgets/check_box_widget.hpp"
-#include "guiengine/widgets/label_widget.hpp"
-#include "guiengine/widgets/ribbon_widget.hpp"
-#include "io/file_manager.hpp"
 #include "karts/kart_properties.hpp"
 #include "karts/kart_properties_manager.hpp"
 #include "states_screens/dialogs/ghost_replay_info_dialog.hpp"
@@ -74,7 +69,7 @@ void GhostReplaySelection::unloaded()
  */
 void GhostReplaySelection::refresh(bool forced_update, bool update_columns)
 {
-    if (!ReplayPlay::get()->hasLoadedAllReplays() || forced_update)
+    if (ReplayPlay::get()->getNumReplayFile() == 0 || forced_update)
         ReplayPlay::get()->loadAllReplayFile();
     defaultSort();
     loadList();
@@ -112,7 +107,7 @@ void GhostReplaySelection::loadedFromFile()
 
     m_replay_version_toggle_widget =
         getWidget<GUIEngine::CheckBoxWidget>("replay_version_toggle");
-    m_replay_version_toggle_widget->setState(/* default value */ false);
+    m_replay_version_toggle_widget->setState(/* default value */ true);
     m_same_version = m_replay_version_toggle_widget->getState();
 
     m_best_times_toggle_widget =
@@ -127,6 +122,7 @@ void GhostReplaySelection::loadedFromFile()
     m_compare_toggle_widget->setVisible(false);
     getWidget<LabelWidget>("compare-toggle-text")->setVisible(false);
 
+    m_mode_tabs = getWidget<GUIEngine::RibbonWidget>("race_mode");
     m_active_mode = RaceManager::MINOR_MODE_TIME_TRIAL;
     m_active_mode_is_linear = true;
     
@@ -177,11 +173,14 @@ void GhostReplaySelection::init()
 {
     Screen::init();
     m_cur_difficulty = RaceManager::get()->getDifficulty();
-
+    
+    int icon_height = GUIEngine::getFontHeight();
+    int row_height = GUIEngine::getFontHeight() * 5 / 4;
+                                                        
     // 128 is the height of the image file
-    m_icon_bank->setScale(1.0f / 128.0f);
+    m_icon_bank->setScale(icon_height/128.0f);
     m_icon_bank->setTargetIconSize(128, 128);
-    m_replay_list_widget->setIcons(m_icon_bank);
+    m_replay_list_widget->setIcons(m_icon_bank, (int)row_height);
 
     refresh(/*reload replay files*/ false, /* update columns */ true);
 }   // init
@@ -242,12 +241,20 @@ void GhostReplaySelection::loadList()
                 // no need to check this again.
                 const ReplayPlay::ReplayData& bt = ReplayPlay::get()->getReplayData(m_best_times_index[j]);
 
-                // Check further in the index if it's not the same track, not the same difficulty,
-                // not the same direction or not the same laps number.
-                if (rd.m_track_name != bt.m_track_name ||
-                    rd.m_difficulty != bt.m_difficulty ||
-                    rd.m_reverse    != bt.m_reverse    ||
-                    rd.m_laps       != bt.m_laps)
+                // If it's not the same track, check further in the index
+                if (rd.m_track_name != bt.m_track_name)
+                    continue;
+
+                // If it's not the same difficulty, check further in the index
+                if (rd.m_difficulty != bt.m_difficulty)
+                    continue;
+
+                // If it's not the same direction, check further in the index
+                if (rd.m_reverse != bt.m_reverse)
+                    continue;
+
+                // If it's not the same lap numbers, check further in the index
+                if (rd.m_laps != bt.m_laps)
                     continue;
 
                 // The replay data have the same properties, compare the times
@@ -267,9 +274,13 @@ void GhostReplaySelection::loadList()
             {
                 // Update the value
                 if (replace_old_best)
+                {
                     m_best_times_index[index_old_best] = i;
+                }
                 else
+                {
                     m_best_times_index.push_back(i);
+                }
             }
         }
     }
@@ -283,15 +294,10 @@ void GhostReplaySelection::loadList()
 
     unsigned int best_index = 0;
 
-    // Only compute the compare index if we are actually going to compare.
-    // This avoids spurious errors trying to find a replay with UID 0.
-    unsigned int compare_index = 0;
-    if (m_is_comparing)
-        // In case the requested replay is not found, compare_index will be 0.
-        compare_index = ReplayPlay::get()->getReplayIdByUID(m_replay_to_compare_uid);
-
-    // It's better to do this when not comparing than to do it repeatedly in the loop,
-    // it will simply be unused if not comparing.
+    // getReplayIdByUID will send 0 if the UID is incorrect,
+    // and m_is_comparing will be false if it is incorrect,
+    // so it always work
+    unsigned int compare_index = ReplayPlay::get()->getReplayIdByUID(m_replay_to_compare_uid);
     const ReplayPlay::ReplayData& rd_compare = ReplayPlay::get()->getReplayData(compare_index);
 
     for (unsigned int i = 0; i < ReplayPlay::get()->getNumReplayFile() ; i++)
@@ -326,14 +332,21 @@ void GhostReplaySelection::loadList()
         // Only display replays comparable with the replay selected for comparison
         if (m_is_comparing)
         {
-            // Check further in the index if it's not the same track,
-            // not the same direction, not the same lap number.
-            // Also prevent comparing a replay with itself.
-            if (rd.m_track_name != rd_compare.m_track_name ||
-                rd.m_reverse    != rd_compare.m_reverse    ||
-                rd.m_laps       != rd_compare.m_laps       ||
-                compare_index == i)
-                continue;
+                // If it's not the same track, check further in the index
+                if (rd.m_track_name != rd_compare.m_track_name)
+                    continue;
+
+                // If it's not the same direction, check further in the index
+                if (rd.m_reverse != rd_compare.m_reverse)
+                    continue;
+
+                // If it's not the same lap numbers, check further in the index
+                if (rd.m_laps != rd_compare.m_laps)
+                    continue;
+
+                // Don't compare a replay with itself
+                if (compare_index == i)
+                    continue;
         }
         // Only display replays matching the current mode
         if (m_active_mode == RaceManager::MINOR_MODE_TIME_TRIAL &&
@@ -549,12 +562,12 @@ void GhostReplaySelection::onColumnClicked(int column_id, bool sort_desc, bool s
     else if (column_id == 4)
         ReplayPlay::setSortOrder(ReplayPlay::SO_TIME);
     else if (column_id == 5)
-        ReplayPlay::setSortOrder(ReplayPlay::SO_KART_TYPE);
+        return; // no sorting by kart icon (yet ?)
     else if (column_id == 6)
         ReplayPlay::setSortOrder(ReplayPlay::SO_USER);
     else if (column_id == 7)
         ReplayPlay::setSortOrder(ReplayPlay::SO_KART_NUM);
-    else if (column_id == 8)
+    else if (column_id == 8)    
         ReplayPlay::setSortOrder(ReplayPlay::SO_VERSION);
     else
         assert(0);

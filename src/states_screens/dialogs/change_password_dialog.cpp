@@ -20,12 +20,8 @@
 #include "audio/sfx_manager.hpp"
 #include "config/player_manager.hpp"
 #include "guiengine/engine.hpp"
-#include "guiengine/widgets/icon_button_widget.hpp"
-#include "guiengine/widgets/label_widget.hpp"
-#include "guiengine/widgets/ribbon_widget.hpp"
-#include "guiengine/widgets/text_box_widget.hpp"
+#include "guiengine/widgets.hpp"
 #include "online/xml_request.hpp"
-#include "states_screens/dialogs/message_dialog.hpp"
 #include "states_screens/state_manager.hpp"
 #include "utils/string_utils.hpp"
 #include "utils/translation.hpp"
@@ -46,7 +42,6 @@ using namespace Online;
 ChangePasswordDialog::ChangePasswordDialog() : ModalDialog(0.8f, 0.7f)
 {
     m_self_destroy = false;
-    m_show_success_dialog = false;
     m_success = false;
 
     loadFromFile("online/change_password.stkgui");
@@ -120,7 +115,7 @@ void ChangePasswordDialog::changePassword(const stringw &current_password,
     request->addParameter("current", current_password);
 
     // The server code expects two passwords (and verifies again that they
-    // are identical), so send the password twice.
+    // are identical), so send the passwod twice.
     request->addParameter("new1", new_password);
     request->addParameter("new2", new_password);
     request->queue();
@@ -212,9 +207,12 @@ bool ChangePasswordDialog::onEscapePressed()
 // ----------------------------------------------------------------------------
 void ChangePasswordDialog::success()
 {
-    // Close this dialog and show success dialog
-    m_self_destroy = true;
-    m_show_success_dialog = true;
+    m_info_widget->setDefaultColor();
+    m_info_widget->setText(_("Password successfully changed."), false);
+    m_options_widget->setActive(true);
+    m_current_password_widget->setText("");
+    m_new_password1_widget->setText("");
+    m_new_password2_widget->setText("");
 }   // success
 
 // ----------------------------------------------------------------------------
@@ -244,9 +242,5 @@ void ChangePasswordDialog::onUpdate(float dt)
     if (m_self_destroy)
     {
         ModalDialog::dismiss();
-    }
-    if (m_show_success_dialog)
-    {
-        new MessageDialog(_("Password successfully changed."));
     }
 }   // onUpdate

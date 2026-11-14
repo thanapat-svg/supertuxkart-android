@@ -24,8 +24,9 @@
 
 #include "achievements/achievement.hpp"
 #include "guiengine/screen.hpp"
-#include "guiengine/widgets/list_widget.hpp"
+#include "guiengine/widgets.hpp"
 #include "states_screens/online/online_profile_base.hpp"
+#include "online/profile_manager.hpp"
 
 
 namespace GUIEngine { class Widget; }
@@ -79,8 +80,8 @@ public:
 
     // ------------------------------------------------------------------------
     virtual void refreshAchievementsList()
-    {
-        m_waiting_for_achievements = true;
+    { 
+        m_waiting_for_achievements = true; 
     }   // refreshAchievementsList
 };
 
@@ -95,7 +96,7 @@ class TabOnlineProfileAchievements : public BaseOnlineProfileAchievements,
 protected:
     friend class GUIEngine::ScreenSingleton<TabOnlineProfileAchievements>;
 
-    TabOnlineProfileAchievements()
+    TabOnlineProfileAchievements() 
       : BaseOnlineProfileAchievements("online/profile_achievements_tab.stkgui")
     {}
 

@@ -29,7 +29,6 @@
 #include <string>
 #include <vector>
 #include <irrString.h>
-#include <cstdint>
 
 enum KartTeam : int8_t
 {

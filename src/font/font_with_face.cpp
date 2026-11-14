@@ -33,7 +33,6 @@
 #include "utils/utf8.h"
 
 #include "GlyphLayout.h"
-#include "IVideoDriver.h"
 #include <array>
 #ifndef SERVER_ONLY
 #include <ge_texture.hpp>
@@ -395,19 +394,16 @@ void FontWithFace::dumpGlyphPage()
 }   // dumpGlyphPage
 
 // ----------------------------------------------------------------------------
-/** Set the face size which is resolution-dependent.
+/** Set the face dpi which is resolution-dependent.
+ *  Normal text will range from 0.8, in 640x* resolutions (won't scale below
+ *  that) to 1.0, in 1024x* resolutions, and linearly up.
+ *  Bold text will range from 0.2, in 640x* resolutions (won't scale below
+ *  that) to 0.4, in 1024x* resolutions, and linearly up.
  */
 void FontWithFace::setDPI()
 {
-    float width_factor  = irr_driver->getActualScreenSize().Width  / 1280.0f;
-    float height_factor = irr_driver->getActualScreenSize().Height / 720.0f;
-    float min_factor = std::min(width_factor, height_factor);
-    float base_factor = width_factor * width_factor * width_factor
-                      * height_factor * height_factor * height_factor
-                      * min_factor * min_factor;
-    // Scale increases linearly when the aspect ratio remains identical
-    float scale = sqrtf(sqrtf(sqrtf(base_factor)));
-
+    float scale = std::min(irr_driver->getActualScreenSize().Height,
+                             irr_driver->getActualScreenSize().Width)  / 720.0f;
     int factorTwo = getScalingFactorTwo();
     
     if (UserConfigParams::m_font_size < 0)
@@ -501,12 +497,11 @@ core::dimension2d<u32> FontWithFace::getDimension(const core::stringw& text,
     if (GUIEngine::isNoGraphics())
         return core::dimension2d<u32>(1, 1);
 
-    const float scale = (font_settings ? font_settings->getScale() : 1.0f)
-                     * getNativeScalingFactor();
+    const float scale = font_settings ? font_settings->getScale() : 1.0f;
     if (disableTextShaping())
     {
         return gui::getGlyphLayoutsDimension(text2GlyphsWithoutShaping(text),
-            m_font_max_height * scale, 1.0f/*inverse shaping*/, scale);
+            m_font_max_height, 1.0f/*inverse shaping*/, scale);
     }
 
     auto& gls = font_manager->getCachedLayouts(text);
@@ -529,8 +524,7 @@ int FontWithFace::getCharacterFromPos(const wchar_t* text, int pixel_x,
                                       FontSettings* font_settings) const
 {
 #ifndef SERVER_ONLY
-    const float scale = (font_settings ? font_settings->getScale() : 1.0f)
-                     * getNativeScalingFactor();
+    const float scale = font_settings ? font_settings->getScale() : 1.0f;
     float x = 0;
     int idx = 0;
 
@@ -579,8 +573,7 @@ void FontWithFace::render(const std::vector<gui::GlyphLayout>& gl,
         font_settings->useBlackBorder() : false;
     const bool colored_border = font_settings ?
         font_settings->useColoredBorder() : false;
-    const float scale = (font_settings ? font_settings->getScale() : 1.0f)
-                     * getNativeScalingFactor();
+    const float scale = font_settings ? font_settings->getScale() : 1.0f;
     const float shadow = font_settings ? font_settings->useShadow() : false;
 
     if (shadow)

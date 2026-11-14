@@ -15,28 +15,56 @@
 //  along with this program; if not, write to the Free Software
 //  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
-#ifndef SERVER_ONLY // No GUI files in server builds
-
-// Manages includes common to all options screens
-#include "states_screens/options/options_common.hpp"
+#include "states_screens/options/options_screen_general.hpp"
 
 #include "addons/news_manager.hpp"
+#include "audio/sfx_manager.hpp"
+#include "audio/sfx_base.hpp"
+#include "config/hardware_stats.hpp"
 #include "config/player_manager.hpp"
+#include "config/user_config.hpp"
+#include "font/bold_face.hpp"
+#include "font/font_manager.hpp"
+#include "font/regular_face.hpp"
+#include "graphics/irr_driver.hpp"
+#include "guiengine/scalable_font.hpp"
+#include "guiengine/screen.hpp"
+#include "guiengine/widgets/button_widget.hpp"
+#include "guiengine/widgets/check_box_widget.hpp"
+#include "guiengine/widgets/dynamic_ribbon_widget.hpp"
+#include "guiengine/widgets/label_widget.hpp"
+#include "guiengine/widgets/list_widget.hpp"
+#include "guiengine/widgets/spinner_widget.hpp"
+#include "guiengine/widget.hpp"
+#include "io/file_manager.hpp"
 #include "online/request_manager.hpp"
 #include "states_screens/dialogs/download_assets.hpp"
 #include "states_screens/dialogs/message_dialog.hpp"
 #include "states_screens/main_menu_screen.hpp"
+#include "states_screens/options/options_screen_audio.hpp"
+#include "states_screens/options/options_screen_input.hpp"
+#include "states_screens/options/options_screen_language.hpp"
+#include "states_screens/options/options_screen_ui.hpp"
+#include "states_screens/options/options_screen_video.hpp"
+#include "states_screens/state_manager.hpp"
+#include "states_screens/options/user_screen.hpp"
 #include "utils/extract_mobile_assets.hpp"
+#include "utils/log.hpp"
+#include "utils/string_utils.hpp"
+#include "utils/translation.hpp"
 
-#include <IrrlichtDevice.h>
+#include <algorithm>
+#include <iostream>
+#include <sstream>
 
 using namespace GUIEngine;
 using namespace Online;
 
 // -----------------------------------------------------------------------------
 
-OptionsScreenGeneral::OptionsScreenGeneral() : Screen("options/options_general.stkgui")
+OptionsScreenGeneral::OptionsScreenGeneral() : Screen("options_general.stkgui")
 {
+    m_resizable = true;
     m_inited = false;
 }   // OptionsScreenVideo
 
@@ -51,6 +79,8 @@ void OptionsScreenGeneral::loadedFromFile()
 
 void OptionsScreenGeneral::init()
 {
+    GUIEngine::getDevice()->setResizable(
+        StateManager::get()->getGameState() == GUIEngine::MENU);
     Screen::init();
     RibbonWidget* ribbon = getWidget<RibbonWidget>("options_choice");
     assert(ribbon != NULL);
@@ -73,8 +103,6 @@ void OptionsScreenGeneral::init()
     CheckBoxWidget* show_login = getWidget<CheckBoxWidget>("show-login");
     assert( show_login!= NULL );
     show_login->setState( UserConfigParams::m_always_show_login_screen);
-
-    OptionsCommon::setTabStatus();
 
 #ifdef MOBILE_STK
     if (ExtractMobileAssets::hasFullAssets())
@@ -102,12 +130,28 @@ void OptionsScreenGeneral::init()
 
 void OptionsScreenGeneral::eventCallback(Widget* widget, const std::string& name, const int playerID)
 {
+#ifndef SERVER_ONLY
     if (name == "options_choice")
     {
         std::string selection = ((RibbonWidget*)widget)->getSelectionIDString(PLAYER_ID_GAME_MASTER);
 
-        if (selection != "tab_general")
-            OptionsCommon::switchTab(selection);
+        Screen *screen = NULL;
+        if (selection == "tab_audio")
+            screen = OptionsScreenAudio::getInstance();
+        else if (selection == "tab_video")
+            screen = OptionsScreenVideo::getInstance();
+        else if (selection == "tab_players")
+            screen = TabbedUserScreen::getInstance();
+        else if (selection == "tab_controls")
+            screen = OptionsScreenInput::getInstance();
+        else if (selection == "tab_ui")
+            screen = OptionsScreenUI::getInstance();
+        //else if (selection == "tab_general")
+        //    screen = OptionsScreenGeneral::getInstance();
+        else if (selection == "tab_language")
+            screen = OptionsScreenLanguage::getInstance();
+        if(screen)
+            StateManager::get()->replaceTopMostScreen(screen);
     }
     else if(name == "back")
     {
@@ -197,6 +241,7 @@ void OptionsScreenGeneral::eventCallback(Widget* widget, const std::string& name
             new DownloadAssets();
     }
 #endif
+#endif
 }   // eventCallback
 
 void OptionsScreenGeneral::setInternetCheckboxes(bool activate)
@@ -236,6 +281,7 @@ void OptionsScreenGeneral::setInternetCheckboxes(bool activate)
 
 void OptionsScreenGeneral::tearDown()
 {
+    GUIEngine::getDevice()->setResizable(false);
     Screen::tearDown();
     // save changes when leaving screen
     user_config->saveConfig();
@@ -248,4 +294,4 @@ void OptionsScreenGeneral::unloaded()
     m_inited = false;
 }   // unloaded
 
-#endif // ifndef SERVER_ONLY
+// -----------------------------------------------------------------------------

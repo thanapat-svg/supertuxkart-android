@@ -32,8 +32,6 @@ enum TypeFBO
     FBO_RGBA_1,
     FBO_RGBA_2,
     FBO_COMBINED_DIFFUSE_SPECULAR,
-    FBO_DISPLACE_SSR,
-
     FBO_TMP1_WITH_DS,
     FBO_HALF1_R,
     FBO_HALF1,
@@ -75,7 +73,6 @@ enum TypeRTT : unsigned int
     RTT_HALF1,
     RTT_HALF1_R,
     RTT_HALF2,
-    RTT_R,
 
     RTT_RGBA_3,
 

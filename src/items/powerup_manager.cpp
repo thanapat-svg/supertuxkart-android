@@ -17,6 +17,12 @@
 //  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "items/powerup_manager.hpp"
+
+#include <cinttypes>
+#include <stdexcept>
+
+#include <irrlicht.h>
+
 #include "config/stk_config.hpp"
 #include "graphics/irr_driver.hpp"
 #include "graphics/sp/sp_base.hpp"
@@ -35,9 +41,7 @@
 #include "utils/constants.hpp"
 #include "utils/string_utils.hpp"
 
-#include <IMesh.h>
-
-PowerupManager* powerup_manager = nullptr;
+PowerupManager* powerup_manager=0;
 
 //-----------------------------------------------------------------------------
 /** The constructor initialises everything to zero. */
@@ -46,8 +50,8 @@ PowerupManager::PowerupManager()
     m_random_seed.store(0);
     for(int i=0; i<POWERUP_MAX; i++)
     {
-        m_all_meshes[i] = nullptr;
-        m_all_icons[i]  = (Material*)nullptr;
+        m_all_meshes[i] = NULL;
+        m_all_icons[i]  = (Material*)NULL;
     }
 }   // PowerupManager
 
@@ -90,7 +94,7 @@ void PowerupManager::unloadPowerups()
 
         //FIXME: I'm not sure if this is OK or if I need to ->drop(),
         //       or delete them, or...
-        m_all_icons[i]  = (Material*)nullptr;
+        m_all_icons[i]  = (Material*)NULL;
     }
 }   // removeTextures
 
@@ -103,7 +107,7 @@ PowerupManager::PowerupType
     PowerupManager::getPowerupType(const std::string &name) const
 {
     // Must match the order of PowerupType in powerup_manager.hpp!!
-    static const std::string powerup_names[] = {
+    static std::string powerup_names[] = {
         "",            /* Nothing */
         "bubblegum", "cake", "bowling", "zipper", "plunger", "switch",
         "swatter", "rubber-ball", "parachute", "anchor"
@@ -181,7 +185,6 @@ void PowerupManager::loadWeights(const XMLNode *powerup_node,
         Log::fatal("PowerupManager",
                    "Cannot find node '%s' in powerup.xml file.",
                    class_name.c_str());
-        return;
     }
 
     for (unsigned int i = 0; i < node->getNumNodes(); i++)
@@ -229,19 +232,12 @@ void PowerupManager::WeightsData::readData(int num_karts, const XMLNode *node)
 
         // Keep a reference for shorter access to the list
         std::vector<int> &l = m_weights_for_section.back();
-        for(unsigned int j=0; j < l_string.size(); j++)
+        for(unsigned int i=0; i<l_string.size(); i++)
         {
-           if(l_string[j].empty()) continue;
+            if(l_string[i]=="") continue;
             int n;
-            if (StringUtils::fromString(l_string[j], n))
-            {
-               l.push_back(n);
-            } else
-            {
-               Log::warn("PowerupManager",
-                         "Invalid integer value '%s' in powerup.xml for '%s'",
-                         l_string[j].c_str(), node->getName().c_str());
-            }
+            StringUtils::fromString(l_string[i], n);
+            l.push_back(n);
         }
         // Make sure we have the right number of entries
         if (l.size() < 2 * (int)POWERUP_LAST)
@@ -329,7 +325,7 @@ void PowerupManager::WeightsData::convertRankToSection(int rank, int *prev,
         return;
     }
 
-    // In FTL mode the first section is for the leader, the
+    // In FTL mode the first section is for the leader, the 
     // second section is used for the first non-leader kart.
     if (RaceManager::get()->isFollowMode() && rank == 2)
     {
@@ -476,8 +472,8 @@ void PowerupManager::loadPowerup(PowerupType type, const XMLNode &node)
                                   /*strip_path*/ false);
 
 
-    assert(m_all_icons[type] != nullptr);
-    assert(m_all_icons[type]->getTexture() != nullptr);
+    assert(m_all_icons[type] != NULL);
+    assert(m_all_icons[type]->getTexture() != NULL);
 
     std::string model("");
     node.get("model", &model);
@@ -616,7 +612,7 @@ PowerupManager::PowerupType PowerupManager::getRandomPowerup(unsigned int pos,
         *n=1;
 
     // Prevents early explosive items
-    if (World::getWorld() &&
+    if (World::getWorld() && 
         stk_config->ticks2Time(World::getWorld()->getTicksSinceStart()) <
                                       stk_config->m_no_explosive_items_timeout)
     {

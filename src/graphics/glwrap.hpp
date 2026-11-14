@@ -25,14 +25,11 @@
 #include "utils/log.hpp"
 #include "utils/leak_check.hpp"
 #include "utils/no_copy.hpp"
+#include "utils/vec3.hpp"
 
+#include <irrlicht.h>
 #include <array>
 #include <vector>
-
-#include <S3DVertex.h>
-#include <SColor.h>
-#include <vector3d.h>
-using namespace irr;
 
 namespace HardwareStats
 {

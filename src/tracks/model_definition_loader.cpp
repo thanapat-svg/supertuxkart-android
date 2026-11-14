@@ -26,7 +26,6 @@ using namespace irr;
 #include "modes/world.hpp"
 #include "tracks/track.hpp"
 
-#include <IAnimatedMeshSceneNode.h>
 #include <IMeshSceneNode.h>
 #include <ISceneManager.h>
 #include <IMeshManipulator.h>

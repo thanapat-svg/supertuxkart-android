@@ -28,8 +28,8 @@ CGUISTKListBox::CGUISTKListBox(IGUIEnvironment* environment, IGUIElement* parent
             s32 id, core::rect<s32> rectangle, bool clip,
             bool drawBack, bool moveOverSelect)
 : IGUIElement(EGUIET_LIST_BOX, environment, parent, id, rectangle), Selected(-1),
-    m_item_height(0),ItemHeightOverride(0),
-    TotalItemHeight(0), ItemsIconWidth(0), MousePosY(0), m_font(0), IconBank(0),
+    ItemHeight(0),ItemHeightOverride(0),
+    TotalItemHeight(0), ItemsIconWidth(0), MousePosY(0), Font(0), IconBank(0),
     ScrollBar(0), selectTime(0), Selecting(false), Moving(false),
     DrawBack(drawBack), MoveOverSelect(moveOverSelect), AutoScroll(true),
     HighlightWhenNotFocused(true)
@@ -40,16 +40,17 @@ CGUISTKListBox::CGUISTKListBox(IGUIEnvironment* environment, IGUIElement* parent
     #endif
 
     IGUISkin* skin = Environment->getSkin();
+    const s32 s = skin->getSize(EGDS_SCROLLBAR_SIZE);
 
-    ScrollBar = Environment->addScrollBar(false, core::recti(0, 0, 1, 1), this, -1);
+    ScrollBar = Environment->addScrollBar(false,
+                            core::rect<s32>(RelativeRect.getWidth() - s, 0,
+                                            RelativeRect.getWidth(), RelativeRect.getHeight()), this, -1);
     ScrollBar->grab();
     ScrollBar->setSubElement(true);
     ScrollBar->setTabStop(false);
     ScrollBar->setAlignment(EGUIA_LOWERRIGHT, EGUIA_LOWERRIGHT, EGUIA_UPPERLEFT, EGUIA_LOWERRIGHT);
     ScrollBar->setVisible(false);
     ScrollBar->setPos(0);
-
-    updateScrollBarSize(skin->getSize(EGDS_SCROLLBAR_SIZE));
 
     setNotClipped(!clip);
 
@@ -68,8 +69,8 @@ CGUISTKListBox::~CGUISTKListBox()
     if (ScrollBar)
         ScrollBar->drop();
 
-    if (m_font)
-        m_font->drop();
+    if (Font)
+        Font->drop();
 
     if (IconBank)
         IconBank->drop();
@@ -137,10 +138,10 @@ s32 CGUISTKListBox::getItemAt(s32 xpos, s32 ypos) const
         )
         return -1;
 
-    if ( m_item_height == 0 )
+    if ( ItemHeight == 0 )
         return -1;
 
-    s32 item = ((ypos - AbsoluteRect.UpperLeftCorner.Y - 1) + ScrollBar->getPos()) / m_item_height;
+    s32 item = ((ypos - AbsoluteRect.UpperLeftCorner.Y - 1) + ScrollBar->getPos()) / ItemHeight;
     if ( item < 0 || item >= (s32)Items.size())
         return -1;
 
@@ -161,36 +162,31 @@ void CGUISTKListBox::clear()
 }
 
 
-void CGUISTKListBox::updateDefaultItemHeight()
-{
-    if (ItemHeightOverride == 0)
-        m_item_height = m_font->getHeightPerLine() + 4;
-}
-
-
 void CGUISTKListBox::recalculateItemHeight()
 {
     IGUISkin* skin = Environment->getSkin();
 
-    if (m_font != skin->getFont())
+    if (Font != skin->getFont())
     {
-        if (m_font)
-            m_font->drop();
+        if (Font)
+            Font->drop();
 
-        m_font = skin->getFont();
+        Font = skin->getFont();
         if ( 0 == ItemHeightOverride )
-            m_item_height = 0;
+            ItemHeight = 0;
 
-        if (m_font)
+        if (Font)
         {
-            updateDefaultItemHeight();
-            m_font->grab();
+            if ( 0 == ItemHeightOverride )
+                ItemHeight = Font->getHeightPerLine() + 4;
+
+            Font->grab();
         }
     }
 
-    TotalItemHeight = m_item_height * Items.size();
+    TotalItemHeight = ItemHeight * Items.size();
     ScrollBar->setMax( core::max_(0, TotalItemHeight - AbsoluteRect.getHeight()) );
-    s32 minItemHeight = m_item_height > 0 ? m_item_height : 1;
+    s32 minItemHeight = ItemHeight > 0 ? ItemHeight : 1;
     ScrollBar->setSmallStep ( minItemHeight );
     ScrollBar->setLargeStep ( 2*minItemHeight );
 
@@ -264,6 +260,81 @@ bool CGUISTKListBox::OnEvent(const SEvent& event)
     {
         switch(event.EventType)
         {
+        case EET_KEY_INPUT_EVENT:
+            if (event.KeyInput.PressedDown &&
+                (event.KeyInput.Key == IRR_KEY_DOWN ||
+                event.KeyInput.Key == IRR_KEY_UP   ||
+                event.KeyInput.Key == IRR_KEY_HOME ||
+                event.KeyInput.Key == IRR_KEY_END  ||
+                event.KeyInput.Key == IRR_KEY_NEXT ||
+                event.KeyInput.Key == IRR_KEY_PRIOR ) )
+            {
+                s32 oldSelected = Selected;
+                switch (event.KeyInput.Key)
+                {
+                    case IRR_KEY_DOWN:
+                        Selected += 1;
+                        break;
+                    case IRR_KEY_UP:
+                        Selected -= 1;
+                        break;
+                    case IRR_KEY_HOME:
+                        Selected = 0;
+                        break;
+                    case IRR_KEY_END:
+                        Selected = (s32)Items.size()-1;
+                        break;
+                    case IRR_KEY_NEXT:
+                        Selected += AbsoluteRect.getHeight() / ItemHeight;
+                        break;
+                    case IRR_KEY_PRIOR:
+                        Selected -= AbsoluteRect.getHeight() / ItemHeight;
+                        break;
+                    default:
+                        break;
+                }
+                if (Selected >= (s32)Items.size())
+                    Selected = Items.size() - 1;
+                else
+                if (Selected<0)
+                    Selected = 0;
+
+                if (m_deactivated)
+                    Selected = -1;
+                recalculateScrollPos();
+
+                // post the news
+
+                if (oldSelected != Selected && Parent && !Selecting && !MoveOverSelect)
+                {
+                    SEvent e;
+                    e.EventType = EET_GUI_EVENT;
+                    e.GUIEvent.Caller = this;
+                    e.GUIEvent.Element = 0;
+                    e.GUIEvent.EventType = EGET_LISTBOX_CHANGED;
+                    Parent->OnEvent(e);
+                }
+
+                return true;
+            }
+            else
+            if (!event.KeyInput.PressedDown && 
+                (event.KeyInput.Key == IRR_KEY_RETURN || 
+                event.KeyInput.Key == IRR_KEY_SPACE))
+            {
+                if (Parent)
+                {
+                    SEvent e;
+                    e.EventType = EET_GUI_EVENT;
+                    e.GUIEvent.Caller = this;
+                    e.GUIEvent.Element = 0;
+                    e.GUIEvent.EventType = EGET_LISTBOX_SELECTED_AGAIN;
+                    Parent->OnEvent(e);
+                }
+                return true;
+            }
+            break;
+
         case EET_GUI_EVENT:
             switch(event.GUIEvent.EventType)
             {
@@ -292,7 +363,7 @@ bool CGUISTKListBox::OnEvent(const SEvent& event)
                 switch(event.MouseInput.Event)
                 {
                 case EMIE_MOUSE_WHEEL:
-                    ScrollBar->setPos(ScrollBar->getPos() + event.MouseInput.Wheel * - m_item_height / 2);
+                    ScrollBar->setPos(ScrollBar->getPos() + (event.MouseInput.Wheel < 0 ? -1 : 1)*-ItemHeight/2);
                     return true;
 
                 case EMIE_LMOUSE_PRESSED_DOWN:
@@ -321,7 +392,7 @@ bool CGUISTKListBox::OnEvent(const SEvent& event)
                     }
 
                     if (Selecting &&
-                        std::abs(event.MouseInput.Y - MousePosY) > m_item_height/3)
+                        std::abs(event.MouseInput.Y - MousePosY) > ItemHeight/3)
                     {
                         Moving = true;
                         Selecting = false;
@@ -339,7 +410,6 @@ bool CGUISTKListBox::OnEvent(const SEvent& event)
                 }
             }
             break;
-        case EET_KEY_INPUT_EVENT: // keyboard events are captured and handled elsewhere
         case EET_LOG_TEXT_EVENT:
         case EET_USER_EVENT:
         case EET_JOYSTICK_INPUT_EVENT:
@@ -393,19 +463,8 @@ void CGUISTKListBox::selectNew(s32 ypos, bool onlyHover)
 void CGUISTKListBox::updateAbsolutePosition()
 {
     IGUIElement::updateAbsolutePosition();
-    for (unsigned int i = 0; i < Items.size(); i++)
-    {
-        for (unsigned int j = 0; j < Items[i].m_contents.size(); j++)
-        {
-            Items[i].m_contents[j].m_glyph_layouts.clear();
-        }
-    }
 
-    if (m_font)
-        updateDefaultItemHeight();
-    ItemsIconWidth = 0;
-    if (!Items.empty())
-        recalculateIconWidth();
+    recalculateItemHeight();
 }
 
 
@@ -419,7 +478,6 @@ void CGUISTKListBox::draw()
     recalculateItemHeight(); // if the font changed
 
     IGUISkin* skin = Environment->getSkin();
-    updateScrollBarSize(skin->getSize(EGDS_SCROLLBAR_SIZE));
 
     core::rect<s32>* clipRect = 0;
 
@@ -431,7 +489,7 @@ void CGUISTKListBox::draw()
     core::rect<s32> clientClip(AbsoluteRect);
     clientClip.UpperLeftCorner.Y += 1;
     if (ScrollBar->isVisible())
-        clientClip.LowerRightCorner.X -= ScrollBar->getRelativePosition().getWidth();
+        clientClip.LowerRightCorner.X = AbsoluteRect.LowerRightCorner.X - skin->getSize(EGDS_SCROLLBAR_SIZE);
     clientClip.LowerRightCorner.Y -= 1;
     clientClip.clipAgainst(AbsoluteClippingRect);
 
@@ -443,9 +501,9 @@ void CGUISTKListBox::draw()
 
     frameRect = AbsoluteRect;
     if (ScrollBar->isVisible())
-        frameRect.LowerRightCorner.X -= ScrollBar->getRelativePosition().getWidth();
+        frameRect.LowerRightCorner.X = AbsoluteRect.LowerRightCorner.X - skin->getSize(EGDS_SCROLLBAR_SIZE);
 
-    frameRect.LowerRightCorner.Y = AbsoluteRect.UpperLeftCorner.Y + m_item_height;
+    frameRect.LowerRightCorner.Y = AbsoluteRect.UpperLeftCorner.Y + ItemHeight;
 
     frameRect.UpperLeftCorner.Y -= ScrollBar->getPos();
     frameRect.LowerRightCorner.Y -= ScrollBar->getPos();
@@ -472,7 +530,7 @@ void CGUISTKListBox::draw()
             if (!ScrollBar->isVisible())
                 textRect.LowerRightCorner.X = textRect.LowerRightCorner.X - skin->getSize(EGDS_SCROLLBAR_SIZE);
 
-            if (m_font)
+            if (Font)
             {
                 int total_proportion = 0;
                 for(unsigned int x = 0; x < Items[i].m_contents.size(); ++x)
@@ -530,18 +588,18 @@ void CGUISTKListBox::draw()
                         Items[i].m_contents[x].m_glyph_layouts.empty())
                     {
                         int text_width = (textRect.LowerRightCorner.X - textRect.UpperLeftCorner.X);
-                        m_font->initGlyphLayouts(Items[i].m_contents[x].m_text,
+                        Font->initGlyphLayouts(Items[i].m_contents[x].m_text,
                             Items[i].m_contents[x].m_glyph_layouts);
                         // Remove highlighted link if cache already has it
                         gui::removeHighlightedURL(Items[i].m_contents[x].m_glyph_layouts);
                         if (Items[i].m_word_wrap)
                         {
                             gui::breakGlyphLayouts(Items[i].m_contents[x].m_glyph_layouts,
-                                text_width, m_font->getInverseShaping(), m_font->getScale());
+                                text_width, Font->getInverseShaping(), Font->getScale());
                         }
                     }
 
-                    m_font->draw(
+                    Font->draw(
                         Items[i].m_contents[x].m_glyph_layouts,
                         textRect,
                         hasItemOverrideColor(i, font_color) ? getItemOverrideColor(i, font_color) : getItemDefaultColor(font_color),
@@ -559,8 +617,8 @@ void CGUISTKListBox::draw()
             }
         }
 
-        frameRect.UpperLeftCorner.Y += m_item_height;
-        frameRect.LowerRightCorner.Y += m_item_height;
+        frameRect.UpperLeftCorner.Y += ItemHeight;
+        frameRect.LowerRightCorner.Y += ItemHeight;
     }
     FontDrawer::endBatching();
 #endif
@@ -596,16 +654,16 @@ void CGUISTKListBox::recalculateScrollPos()
     if (!AutoScroll)
         return;
 
-    const s32 selPos = (Selected == -1 ? TotalItemHeight : Selected * m_item_height) - ScrollBar->getPos();
+    const s32 selPos = (Selected == -1 ? TotalItemHeight : Selected * ItemHeight) - ScrollBar->getPos();
 
     if (selPos < 0)
     {
         ScrollBar->setPos(ScrollBar->getPos() + selPos);
     }
     else
-    if (selPos > AbsoluteRect.getHeight() - m_item_height)
+    if (selPos > AbsoluteRect.getHeight() - ItemHeight)
     {
-        ScrollBar->setPos(ScrollBar->getPos() + selPos - AbsoluteRect.getHeight() + m_item_height);
+        ScrollBar->setPos(ScrollBar->getPos() + selPos - AbsoluteRect.getHeight() + ItemHeight);
     }
 }
 
@@ -747,7 +805,7 @@ video::SColor CGUISTKListBox::getItemDefaultColor(EGUI_LISTBOX_COLOR colorType) 
 //! set global itemHeight
 void CGUISTKListBox::setItemHeight( s32 height )
 {
-    m_item_height = height;
+    ItemHeight = height;
     ItemHeightOverride = 1;
 }
 
@@ -756,16 +814,6 @@ void CGUISTKListBox::setItemHeight( s32 height )
 void CGUISTKListBox::setDrawBackground(bool draw)
 {
     DrawBack = draw;
-}
-
-
-void CGUISTKListBox::updateScrollBarSize(s32 size)
-{
-    if (size != ScrollBar->getRelativePosition().getWidth())
-    {
-        core::recti r(RelativeRect.getWidth() - size, 0, RelativeRect.getWidth(), RelativeRect.getHeight());
-        ScrollBar->setRelativePosition(r);
-    }
 }
 
 

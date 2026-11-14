@@ -38,13 +38,9 @@
 #include "mini_glm.hpp"
 #include "utils/string_utils.hpp"
 
-#include <IAnimatedMeshSceneNode.h>
-#include <IFileSystem.h>
 #include <ISceneManager.h>
-#include <IMeshManipulator.h>
 #include <IMeshSceneNode.h>
 #include <ITexture.h>
-#include <IVideoDriver.h>
 using namespace irr;
 
 #include <algorithm>
@@ -121,7 +117,7 @@ void PhysicalObject::Settings::init()
     m_friction           = 0.5f;   // default bullet value
     m_restitution        = 0.0f;
     m_linear_factor      = Vec3(1.0f, 1.0f, 1.0f);
-    m_angular_factor     = Vec3(1.0f, 1.0f, 1.0f);
+    m_angular_factor     = Vec3(1.0f, 1.0f, 1.0f); 
     m_linear_damping     = 0.0f;
     // Make sure that the cones stop rolling by defining angular friction != 0.
     m_angular_damping    = 0.5f;
@@ -387,7 +383,7 @@ void PhysicalObject::init(const PhysicalObject::Settings& settings)
                 return;
         }   // switch node->getType()
 
-        std::unique_ptr<TriangleMesh>
+        std::unique_ptr<TriangleMesh> 
                    triangle_mesh(new TriangleMesh(/*can_be_transformed*/true));
 
         for(unsigned int i=0; i<mesh->getMeshBufferCount(); i++)
@@ -641,13 +637,11 @@ void PhysicalObject::updateGraphics(float dt)
 
     Vec3 hpr;
     hpr.setHPR(SmoothNetworkBody::getSmoothedTrans().getRotation());
-    // Fix missing rotation when lto is used, see #4811
-    hpr *= RAD_TO_DEGREE;
 
     // This will only update the visual position, so it can be
     // called in updateGraphics()
-    m_object->move(xyz.toIrrVector(), hpr.toIrrVector(),
-                   m_init_scale, /*updateRigidBody*/false,
+    m_object->move(xyz.toIrrVector(), hpr.toIrrVector()*RAD_TO_DEGREE,
+                   m_init_scale, /*updateRigidBody*/false, 
                    /* isAbsoluteCoord */true);
 }   // updateGraphics
 
@@ -689,8 +683,8 @@ void PhysicalObject::update(float dt)
  *  \return True if a triangle was hit, false otherwise (and no output
  *          variable will be set.
  */
-bool PhysicalObject::castRay(const btVector3 &from, const btVector3 &to,
-                             btVector3 *hit_point, const Material **material,
+bool PhysicalObject::castRay(const btVector3 &from, const btVector3 &to, 
+                             btVector3 *hit_point, const Material **material, 
                              btVector3 *normal, bool interpolate_normal) const
 {
     if(m_body_type!=MP_EXACT)
@@ -698,8 +692,8 @@ bool PhysicalObject::castRay(const btVector3 &from, const btVector3 &to,
         Log::warn("PhysicalObject", "Can only raycast against 'exact' meshes.");
         return false;
     }
-    bool result = m_triangle_mesh->castRay(from, to, hit_point,
-                                           material, normal,
+    bool result = m_triangle_mesh->castRay(from, to, hit_point, 
+                                           material, normal, 
                                            interpolate_normal);
     return result;
 }   // castRay

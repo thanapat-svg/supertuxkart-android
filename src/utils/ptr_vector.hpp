@@ -30,6 +30,8 @@
 #include <assert.h>
 #include <stdint.h>
 
+#include "utils/aligned_array.hpp"
+
 enum VECTOR_TYPE
 {
     REF,
@@ -42,7 +44,7 @@ class PtrVector
 {
 
 public:
-    std::vector<TYPE*> m_contents_vector;
+    AlignedArray<TYPE*> m_contents_vector;
 
     PtrVector()
     {
@@ -108,7 +110,16 @@ public:
         assert((unsigned int)ID < (unsigned int)m_contents_vector.size());
 
         delete ( TYPE *) m_contents_vector[ID];
+#ifdef USE_ALIGNED
+        const unsigned int amount = (unsigned int)m_contents_vector.size();
+        for(unsigned int i=ID; i<amount-1; i++)
+        {
+            m_contents_vector[i]=m_contents_vector[i+1];
+        }
+        m_contents_vector.pop_back();
+#else
         m_contents_vector.erase(m_contents_vector.begin()+ID);
+#endif
     }   // erase
 
     // ------------------------------------------------------------------------
@@ -118,7 +129,16 @@ public:
         assert((unsigned int)ID < (unsigned int)m_contents_vector.size());
 
         TYPE* out = m_contents_vector[ID];
+#ifdef USE_ALIGNED
+        const unsigned int amount = (unsigned int)m_contents_vector.size();
+        for(unsigned int i=ID; i<amount-1; i++)
+        {
+            m_contents_vector[i]=m_contents_vector[i+1];
+        }
+        m_contents_vector.pop_back();
+#else
         m_contents_vector.erase(m_contents_vector.begin()+ID);
+#endif
         return out;
     }   // remove
 
@@ -185,29 +205,39 @@ public:
             TYPE * pointer = m_contents_vector[n];
             if(pointer == obj)
             {
+#ifdef USE_ALIGNED
+                const unsigned int amount =
+                    (unsigned int)m_contents_vector.size();
+                for(unsigned int i=n; i<amount-1; i++)
+                {
+                    m_contents_vector[i]=m_contents_vector[i+1];
+                }
+                m_contents_vector.pop_back();
+#else
                 m_contents_vector.erase(m_contents_vector.begin()+n);
+#endif
                 return;
             }
         }   // for n < size()
 
     }   // remove
 
-    typename std::vector<TYPE*>::iterator begin()
+    typename AlignedArray<TYPE*>::iterator begin()
     {
         return m_contents_vector.begin();
     }
 
-    typename std::vector<TYPE*>::iterator end()
+    typename AlignedArray<TYPE*>::iterator end()
     {
         return m_contents_vector.end();
     }
 
-    typename std::vector<TYPE*>::const_iterator begin() const
+    typename AlignedArray<TYPE*>::const_iterator begin() const
     {
         return m_contents_vector.begin();
     }
 
-    typename std::vector<TYPE*>::const_iterator end() const
+    typename AlignedArray<TYPE*>::const_iterator end() const
     {
         return m_contents_vector.end();
     }
@@ -224,7 +254,17 @@ public:
             TYPE * pointer = m_contents_vector[n];
             if((void*)pointer == obj)
             {
+#ifdef USE_ALIGNED
+                const unsigned int amount =
+                    (unsigned int)m_contents_vector.size();
+                for(unsigned int i=n; i<amount-1; i++)
+                {
+                    m_contents_vector[i]=m_contents_vector[i+1];
+                }
+                m_contents_vector.pop_back();
+#else
                 m_contents_vector.erase(m_contents_vector.begin()+n);
+#endif
                 delete pointer;
                 return true;
             }

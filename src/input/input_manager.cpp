@@ -19,7 +19,7 @@
 #include "input/input_manager.hpp"
 
 #include "config/user_config.hpp"
-#include "graphics/camera/camera_fps.hpp"
+#include "graphics/camera_fps.hpp"
 #include "graphics/irr_driver.hpp"
 #include "graphics/shader_based_renderer.hpp"
 #include "graphics/sp/sp_base.hpp"
@@ -35,8 +35,8 @@
 #include "input/multitouch_device.hpp"
 #include "input/sdl_controller.hpp"
 #include "input/wiimote_manager.hpp"
-#include "karts/abstract_kart.hpp"
 #include "karts/controller/controller.hpp"
+#include "karts/abstract_kart.hpp"
 #include "modes/demo_world.hpp"
 #include "modes/world.hpp"
 #include "network/network_config.hpp"
@@ -57,18 +57,16 @@
 #include "utils/string_utils.hpp"
 #include "utils/translation.hpp"
 
-#include <IrrlichtDevice.h>
 #include <ISceneManager.h>
 #include <ICameraSceneNode.h>
 #include <ISceneNode.h>
-#include <ITexture.h>
 
-#include <algorithm>
-#include <iostream>
 #include <map>
-#include <sstream>
-#include <string>
 #include <vector>
+#include <string>
+#include <iostream>
+#include <sstream>
+#include <algorithm>
 
 #ifndef SERVER_ONLY
 #include <SDL.h>
@@ -187,11 +185,8 @@ void InputManager::handleJoystick(SDL_Event& event)
         }
         case SDL_JOYDEVICEREMOVED:
         {
-            int deviceID = m_sdl_controller.at(event.jdevice.which)->getInstanceID();
-            m_gamepads_timer.erase(deviceID);
-            m_gamepads_held_input_id.erase(deviceID);
-            m_gamepads_held_value.erase(deviceID);
-            m_gamepads_held_type.erase(deviceID);
+            m_gamepads_timer.erase(
+                m_sdl_controller.at(event.jdevice.which)->getInstanceID());
             m_sdl_controller.erase(event.jdevice.which);
             break;
         }
@@ -256,17 +251,9 @@ void InputManager::update(float dt)
     {
         it->second -= dt;
         if (it->second < 0)
-        {
-            // If holding a stick active in a menu, we generate new inputs
-            dispatchInput(m_gamepads_held_type[it->first], it->first /* device ID */,
-                          m_gamepads_held_input_id[it->first], Input::AD_NEUTRAL,
-                          m_gamepads_held_value[it->first]);
-            m_gamepads_timer[it->first] = 0.1f;
-        }
+            it = m_gamepads_timer.erase(it);
         else
-        {
             it++;
-        }
     }
 
 #ifndef SERVER_ONLY
@@ -434,7 +421,6 @@ void InputManager::inputSensing(Input::InputType type, int deviceID,
                                 int button, Input::AxisDirection axisDirection,
                                 int value)
 {
-#ifndef SERVER_ONLY
 #if INPUT_MODE_DEBUG
     Log::info("InputManager::inputSensing", "Start sensing input");
 #endif
@@ -575,7 +561,6 @@ void InputManager::inputSensing(Input::InputType type, int deviceID,
             // nothing with them, and thus to fix warnings)
             break;
     }   // switch
-#endif // SERVER_ONLY
 }   // inputSensing
 
 //-----------------------------------------------------------------------------
@@ -622,18 +607,6 @@ void InputManager::dispatchInput(Input::InputType type, int deviceID,
     if (!irr_driver->getDevice()->getEventReceiver())
         return;
 
-    // Reset the timer when the axis which triggered the timer is released
-    if (abs(value) < Input::MAX_VALUE * 2 / 3 &&
-        m_gamepads_timer.find(deviceID) != m_gamepads_timer.end() &&
-        type   == m_gamepads_held_type[deviceID] &&
-        button == m_gamepads_held_input_id[deviceID])
-    {
-        m_gamepads_timer.erase(deviceID);
-        m_gamepads_held_input_id.erase(deviceID);
-        m_gamepads_held_value.erase(deviceID);
-        m_gamepads_held_type.erase(deviceID);
-    }
-
     // Act different in input sensing mode.
     if (m_mode == INPUT_SENSE_KEYBOARD ||
         m_mode == INPUT_SENSE_GAMEPAD)
@@ -676,61 +649,48 @@ void InputManager::dispatchInput(Input::InputType type, int deviceID,
     // fall back to check the defaults.
     if (!action_found &&
             StateManager::get()->getGameState() != GUIEngine::GAME &&
-            type == Input::IT_KEYBOARD && m_mode == MENU &&
-            m_device_manager->getAssignMode() != DETECT_NEW)
+            type == Input::IT_KEYBOARD &&
+            m_mode == MENU && m_device_manager->getAssignMode() == NO_ASSIGN)
     {
         action = PA_BEFORE_FIRST;
-        bool always_valid = false;
 
-        // Listen for page-up, page-down, home and end even in assign-only mode
-        if      (button == IRR_KEY_PRIOR)         action = PA_MENU_PAGE_UP;
-        else if (button == IRR_KEY_NEXT)          action = PA_MENU_PAGE_DOWN;
-        else if (button == IRR_KEY_END)           action = PA_MENU_END;
-        else if (button == IRR_KEY_HOME)          action = PA_MENU_START;
-
-        if (action != PA_BEFORE_FIRST)
-            always_valid = true;
-        
-        if (m_device_manager->getAssignMode() == NO_ASSIGN)
+        if      (button == IRR_KEY_UP)            action = PA_MENU_UP;
+        else if (button == IRR_KEY_DOWN)          action = PA_MENU_DOWN;
+        else if (button == IRR_KEY_LEFT)          action = PA_MENU_LEFT;
+        else if (button == IRR_KEY_RIGHT)         action = PA_MENU_RIGHT;
+        else if (button == IRR_KEY_SPACE)         action = PA_MENU_SELECT;
+        else if (button == IRR_KEY_RETURN)        action = PA_MENU_SELECT;
+        else if (button == IRR_KEY_BUTTON_UP)     action = PA_MENU_DOWN;
+        else if (button == IRR_KEY_BUTTON_DOWN)   action = PA_MENU_UP;
+        else if (button == IRR_KEY_BUTTON_LEFT)   action = PA_MENU_LEFT;
+        else if (button == IRR_KEY_BUTTON_RIGHT)  action = PA_MENU_RIGHT;
+        else if (button == IRR_KEY_BUTTON_A)      action = PA_MENU_SELECT;
+        else if (button == IRR_KEY_TAB)
         {
-            if      (button == IRR_KEY_UP)            action = PA_MENU_UP;
-            else if (button == IRR_KEY_DOWN)          action = PA_MENU_DOWN;
-            else if (button == IRR_KEY_LEFT)          action = PA_MENU_LEFT;
-            else if (button == IRR_KEY_RIGHT)         action = PA_MENU_RIGHT;
-            else if (button == IRR_KEY_SPACE)         action = PA_MENU_SELECT;
-            else if (button == IRR_KEY_RETURN)        action = PA_MENU_SELECT;
-            else if (button == IRR_KEY_BUTTON_UP)     action = PA_MENU_DOWN;
-            else if (button == IRR_KEY_BUTTON_DOWN)   action = PA_MENU_UP;
-            else if (button == IRR_KEY_BUTTON_LEFT)   action = PA_MENU_LEFT;
-            else if (button == IRR_KEY_BUTTON_RIGHT)  action = PA_MENU_RIGHT;
-            else if (button == IRR_KEY_BUTTON_A)      action = PA_MENU_SELECT;
-
-            else if (button == IRR_KEY_TAB)
+            if (shift_mask)
             {
-                if (shift_mask)
-                    action = PA_MENU_UP;
-                else
-                    action = PA_MENU_DOWN;
+                action = PA_MENU_UP;
             }
-
-            if (button == IRR_KEY_RETURN || button == IRR_KEY_BUTTON_A)
+            else
             {
-                if (GUIEngine::ModalDialog::isADialogActive() &&
-                    !GUIEngine::ScreenKeyboard::isActive())
-                {
-                    GUIEngine::ModalDialog::onEnterPressed();
-                }
+                action = PA_MENU_DOWN;
             }
-        } // NO_ASSIGN
+        }
+
+        if (button == IRR_KEY_RETURN || button == IRR_KEY_BUTTON_A)
+        {
+            if (GUIEngine::ModalDialog::isADialogActive() &&
+                !GUIEngine::ScreenKeyboard::isActive())
+            {
+                GUIEngine::ModalDialog::onEnterPressed();
+            }
+        }
 
         if (action != PA_BEFORE_FIRST)
         {
             action_found = true;
-            player = nullptr;
-            if (always_valid && m_device_manager->getAssignMode() == ASSIGN)
-                player = StateManager::get()->getActivePlayer(PLAYER_ID_GAME_MASTER);
+            player = NULL;
         }
-        
     }
 
     // do something with the key if it matches a binding
@@ -822,7 +782,7 @@ void InputManager::dispatchInput(Input::InputType type, int deviceID,
                 return; // we're done here, ignore devices that aren't
                         // associated with players
             }
-        } // DETECT_NEW
+        }
 
         auto cl = LobbyProtocol::get<ClientLobby>();
         bool is_nw_spectator = cl && cl->isSpectator() &&
@@ -881,6 +841,10 @@ void InputManager::dispatchInput(Input::InputType type, int deviceID,
         // ... when in menus
         else
         {
+            // reset timer when released
+            if (abs(value) == 0 && type == Input::IT_STICKMOTION)
+                m_gamepads_timer.erase(deviceID);
+
             // When in master-only mode, we can safely assume that players
             // are set up, contrarly to early menus where we accept every
             // input because players are not set-up yet
@@ -906,55 +870,45 @@ void InputManager::dispatchInput(Input::InputType type, int deviceID,
             }
 
             // menu input
-
-            // Throttle gamepad stick inputs
-            if (type == Input::IT_STICKMOTION &&
-                m_gamepads_timer.find(deviceID) != m_gamepads_timer.end() &&
-                m_gamepads_timer[deviceID] > 0.0f)
+            if (m_gamepads_timer.find(deviceID) == m_gamepads_timer.end())
             {
-                return;
+                if (type == Input::IT_STICKMOTION &&
+                    abs(value) > Input::MAX_VALUE * 2 / 3)
+                {
+                    m_gamepads_timer[deviceID] = 0.25f;
+                }
+
+                if (is_nw_spectator)
+                {
+                    cl->changeSpectateTarget(action, abs(value), type);
+                    return;
+                }
+
+                // player may be NULL in early menus, before player setup has
+                // been performed
+                int playerID = (player == NULL ? 0 : player->getID());
+
+                // If only the master player can act, and this player is not
+                // the master, ignore his input
+                if (m_device_manager->getAssignMode() == ASSIGN &&
+                    m_master_player_only &&
+                    playerID != PLAYER_ID_GAME_MASTER)
+                {
+                    //I18N: message shown when a player that isn't game master
+                    //I18N: tries to modify options that only the game master
+                    //I18N: is allowed to
+                    GUIEngine::showMessage(
+                        _("Only the Game Master may act at this point!"));
+                    return;
+                }
+
+                // all is good, pass the translated input event on to the
+                // event handler
+                GUIEngine::EventHandler::get()
+                    ->processGUIAction(action, deviceID, abs(value), type,
+                                       playerID);
             }
-
-            bool is_nav_action = action == PA_MENU_DOWN || action == PA_MENU_UP ||
-                                 action == PA_MENU_LEFT || action == PA_MENU_RIGHT;
-
-            if ((type == Input::IT_STICKMOTION && abs(value) > Input::MAX_VALUE * 2 / 3) ||
-                (type == Input::IT_STICKBUTTON && is_nav_action))
-            {
-                m_gamepads_timer[deviceID] = 0.2f;
-                m_gamepads_held_input_id[deviceID] = button;
-                m_gamepads_held_value[deviceID] = value;
-                m_gamepads_held_type[deviceID] = type;
-            }
-
-            if (is_nw_spectator)
-            {
-                cl->changeSpectateTarget(action, abs(value), type);
-                return;
-            }
-
-            // player may be NULL in early menus, before player setup has
-            // been performed
-            int playerID = (player == NULL ? 0 : player->getID());
-
-            // If only the master player can act, and this player is not
-            // the master, ignore his input
-            if (m_device_manager->getAssignMode() == ASSIGN &&
-                m_master_player_only && playerID != PLAYER_ID_GAME_MASTER)
-            {
-                //I18N: message shown when a player that isn't game master
-                //I18N: tries to modify options that only the game master
-                //I18N: is allowed to
-                GUIEngine::showMessage(
-                    _("Only the Game Master may act at this point!"));
-                return;
-            }
-
-            // all is good, pass the translated input event on to the
-            // event handler
-            GUIEngine::EventHandler::get()
-                ->processGUIAction(action, deviceID, abs(value), type, playerID);
-        } // When in menus
+        }
     }
     else if (type == Input::IT_KEYBOARD)
     {
@@ -1006,7 +960,6 @@ EventPropagation InputManager::input(const SEvent& event)
         {
             if (!event.JoystickEvent.IsAxisChanged(axis_id))
                 continue;
-
             int value = event.JoystickEvent.Axis[axis_id];
 
             if (UserConfigParams::m_gamepad_debug)
@@ -1023,9 +976,11 @@ EventPropagation InputManager::input(const SEvent& event)
         GamePadDevice* gp =
             getDeviceManager()->getGamePadFromIrrID(event.JoystickEvent.Joystick);
 
-        // Prevent a null pointer crash
-        if (gp == NULL)            
+        if (gp == NULL)
+        {
+            // Prevent null pointer crash
             return EVENT_BLOCK;
+        }
 
         for(int i=0; i<gp->getNumberOfButtons(); i++)
         {

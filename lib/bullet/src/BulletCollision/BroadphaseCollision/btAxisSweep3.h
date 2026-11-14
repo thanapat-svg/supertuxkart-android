@@ -628,6 +628,8 @@ void btAxisSweep3Internal<BP_FP_INT_TYPE>::resetPool(btDispatcher* dispatcher)
 	}
 }       
 
+
+extern int gOverlappingPairs;
 //#include <stdio.h>
 
 template <typename BP_FP_INT_TYPE>
@@ -694,6 +696,7 @@ void	btAxisSweep3Internal<BP_FP_INT_TYPE>::calculateOverlappingPairs(btDispatche
 				pair.m_pProxy0 = 0;
 				pair.m_pProxy1 = 0;
 				m_invalidPair++;
+				//gOverlappingPairs--;
 			} 
 			
 		}

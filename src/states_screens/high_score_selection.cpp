@@ -20,11 +20,8 @@
 
 #include "config/player_manager.hpp"
 #include "config/user_config.hpp"
-#include "graphics/irr_driver.hpp"
 #include "graphics/material.hpp"
 #include "guiengine/CGUISpriteBank.hpp"
-#include "guiengine/widgets/ribbon_widget.hpp"
-#include "io/file_manager.hpp"
 #include "karts/kart_properties.hpp"
 #include "karts/kart_properties_manager.hpp"
 #include "race/grand_prix_data.hpp"
@@ -168,10 +165,13 @@ void HighScoreSelection::init()
 {
     Screen::init();
 
+    int icon_height = GUIEngine::getFontHeight();
+    int row_height = GUIEngine::getFontHeight() * 5 / 4;
+
     // 128 is the height of the image file
-    m_icon_bank->setScale(1.0f / 128.0f);
+    m_icon_bank->setScale(icon_height/128.0f);
     m_icon_bank->setTargetIconSize(128, 128);
-    m_high_scores_list_widget->setIcons(m_icon_bank);
+    m_high_scores_list_widget->setIcons(m_icon_bank, (int)row_height);
 
     refresh(/*reload high score list*/ false, /* update columns */ true);
 }   // init
@@ -400,34 +400,15 @@ void HighScoreSelection::onColumnClicked(int column_id, bool sort_desc, bool sor
     }
 
     if (column_id == 0)
-    {
-        if (m_major_mode == RaceManager::MAJOR_MODE_GRAND_PRIX)
-            Highscores::setSortOrder(Highscores::SO_GP_NAME);
-        else
-            Highscores::setSortOrder(Highscores::SO_TRACK);
-    }
+        Highscores::setSortOrder(Highscores::SO_TRACK);
     else if (column_id == 1)
-    {
         Highscores::setSortOrder(Highscores::SO_DIFF);
-    }
     else if (column_id == 2)
-    {
         Highscores::setSortOrder(Highscores::SO_KART_NUM);
-    }
     else if (column_id == 3)
-    {
-        if (m_major_mode == RaceManager::MAJOR_MODE_GRAND_PRIX)
-            Highscores::setSortOrder(Highscores::SO_MODE);
-        else
-            Highscores::setSortOrder(Highscores::SO_LAPS);
-    }
+        Highscores::setSortOrder(Highscores::SO_LAPS);
     else if (column_id == 4)
-    {
-        if (m_major_mode == RaceManager::MAJOR_MODE_GRAND_PRIX)
-            Highscores::setSortOrder(Highscores::SO_REV_GP);
-        else
-            Highscores::setSortOrder(Highscores::SO_REV);
-    }
+        Highscores::setSortOrder(Highscores::SO_REV);
     else
         assert(0);
 
@@ -444,9 +425,6 @@ void HighScoreSelection::onColumnClicked(int column_id, bool sort_desc, bool sor
 void HighScoreSelection::defaultSort()
 {
     m_reverse_sort = false;
-    if (m_major_mode == RaceManager::MAJOR_MODE_GRAND_PRIX)
-        Highscores::setSortOrder(Highscores::SO_GP_NAME);
-    else
-        Highscores::setSortOrder(Highscores::SO_TRACK);
+    Highscores::setSortOrder(Highscores::SO_DEFAULT);
     highscore_manager->sortHighscores(false);
 }   // defaultSort

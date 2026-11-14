@@ -21,7 +21,6 @@
 
 #include <ISceneNode.h>
 #include <utils/cpp2011.hpp>
-#include <vector3d.h>
 #include <vector>
 
 using namespace irr;
@@ -31,18 +30,11 @@ namespace irr
     namespace scene { class IMesh; }
 }
 
-struct Spotlight
-{
-    irr::f32 m_outer_cone;
-    irr::f32 m_inner_cone;
-};
-
 //#define __LIGHT_NODE_VISUALISATION__
 
 // The actual node
 class LightNode: public scene::ISceneNode
 {
-    Spotlight m_spotlight;
 #ifdef __LIGHT_NODE_VISUALISATION__
     bool m_viz_added;
 #endif
@@ -75,7 +67,6 @@ public:
     // For the debug menu
     void setEnergy(float energy) { m_energy = energy; }
     void setRadius(float radius) { m_radius = radius; }
-    Spotlight& getSpotlightData() { return m_spotlight; }
 
 protected:
     static core::aabbox3df box;

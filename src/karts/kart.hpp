@@ -46,6 +46,7 @@ class ItemState;
 class KartGFX;
 class KartRewinder;
 class MaxSpeed;
+class ParticleEmitter;
 class ParticleKind;
 class SFXBase;
 class Shadow;
@@ -53,12 +54,7 @@ class Skidding;
 class SkidMarks;
 class SlipStream;
 class Stars;
-class SpeedStreaks;
 class TerrainInfo;
-
-#ifndef SERVER_ONLY
-class ParticleEmitter;
-#endif
 
 /** The main kart class. All type of karts are of this object, but with
  *  different controllers. The controllers are what turn a kart into a
@@ -138,9 +134,6 @@ protected:
 
     /** The skidmarks object for this kart. */
     std::unique_ptr<SkidMarks> m_skidmarks;
-
-    /** Parameters for SpeedStreaks effect. */
-    std::unique_ptr<SpeedStreaks> m_speedstreaks;
 #endif
 
     /** All particle effects. */
@@ -162,10 +155,8 @@ protected:
     };
     std::unique_ptr<btCompoundShape, btCompoundShapeDeleter> m_kart_chassis;
 
-#ifndef SERVER_ONLY
     /** For collisions */
     ParticleEmitter *m_collision_particles;
-#endif
 
     /** The main controller of this object, used for driving. This
      *  controller is used to run the kart. It will be replaced
@@ -360,7 +351,7 @@ public:
                                     int fade_out_time) OVERRIDE;
     // ----------------------------------------------------------------------------------------
     virtual void   instantSpeedIncrease(unsigned int category, float add_max_speed,
-                                    float speed_boost, float engine_force,
+                                    float speed_boost, float engine_force, 
                                     int duration, int fade_out_time) OVERRIDE;
     // ----------------------------------------------------------------------------------------
     virtual void   setSlowdown(unsigned int category, float max_speed_fraction,
@@ -371,15 +362,6 @@ public:
     virtual float  getSpeed() const OVERRIDE { return m_speed; }
     // ----------------------------------------------------------------------------------------
     virtual float  getCurrentMaxSpeed() const OVERRIDE;
-    // ----------------------------------------------------------------------------------------
-    /** Returns the speed amount above the kart's own unboosted max speed.
-    */
-    virtual float getCurrentAdditionalSpeed() const OVERRIDE;
-    // ----------------------------------------------------------------------------------------
-    /** Returns the ratio of the speed amount above the kart's own unboosted max speed
-     *  relative to the generic engine max speed.
-     */
-    virtual float getCurrentAdditionalSpeedRatio() const OVERRIDE;
     // ----------------------------------------------------------------------------------------
     /** This is used on the client side only to set the speed of the kart
      *  from the server information. */
@@ -607,10 +589,6 @@ public:
     // ----------------------------------------------------------------------------------------
     virtual Stars* getStarsEffect() const OVERRIDE
                                                { return m_stars_effect.get(); }
-    // ----------------------------------------------------------------------------------------
-#ifndef SERVER_ONLY
-    SpeedStreaks* getSpeedStreaks() const { return m_speedstreaks.get(); }
-#endif
     // ------------------------------------------------------------------------
     /** Return the confirmed finish ticks (sent by the server)
      *  indicating that this kart has really finished the race. */

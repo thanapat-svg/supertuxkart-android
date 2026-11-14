@@ -26,7 +26,6 @@
 #include <mbedtls/sha256.h>
 #include <mbedtls/version.h>
 #include <cstring>
-#include <stdexcept>
 
 // ============================================================================
 std::string Crypto::base64(const std::vector<uint8_t>& input)
@@ -74,10 +73,10 @@ std::string Crypto::m_client_iv;
 // ============================================================================
 bool Crypto::encryptConnectionRequest(BareNetworkString& ns)
 {
-    std::vector<uint8_t> cipher(ns.m_buffer.size() + m_tag_size, 0);
+    std::vector<uint8_t> cipher(ns.m_buffer.size() + 4, 0);
     if (mbedtls_gcm_crypt_and_tag(&m_aes_encrypt_context, MBEDTLS_GCM_ENCRYPT,
         ns.m_buffer.size(), m_iv.data(), m_iv.size(), NULL, 0,
-        ns.m_buffer.data(), cipher.data() + m_tag_size, m_tag_size, cipher.data()) != 0)
+        ns.m_buffer.data(), cipher.data() + 4, 4, cipher.data()) != 0)
     {
         return false;
     }
@@ -88,10 +87,10 @@ bool Crypto::encryptConnectionRequest(BareNetworkString& ns)
 // ----------------------------------------------------------------------------
 bool Crypto::decryptConnectionRequest(BareNetworkString& ns)
 {
-    std::vector<uint8_t> pt(ns.m_buffer.size() - m_tag_size, 0);
+    std::vector<uint8_t> pt(ns.m_buffer.size() - 4, 0);
     uint8_t* tag = ns.m_buffer.data();
     if (mbedtls_gcm_auth_decrypt(&m_aes_decrypt_context, pt.size(),
-        m_iv.data(), m_iv.size(), NULL, 0, tag, m_tag_size, ns.m_buffer.data() + m_tag_size,
+        m_iv.data(), m_iv.size(), NULL, 0, tag, 4, ns.m_buffer.data() + 4,
         pt.data()) != 0)
     {
         throw std::runtime_error("Failed authentication.");
@@ -103,8 +102,8 @@ bool Crypto::decryptConnectionRequest(BareNetworkString& ns)
 // ----------------------------------------------------------------------------
 ENetPacket* Crypto::encryptSend(BareNetworkString& ns, bool reliable)
 {
-    // 4 bytes counter and configurable tag size
-    ENetPacket* p = enet_packet_create(NULL, ns.m_buffer.size() + 4 + m_tag_size,
+    // 4 bytes counter and 4 bytes tag
+    ENetPacket* p = enet_packet_create(NULL, ns.m_buffer.size() + 8,
         (reliable ? ENET_PACKET_FLAG_RELIABLE :
         (ENET_PACKET_FLAG_UNSEQUENCED | ENET_PACKET_FLAG_UNRELIABLE_FRAGMENT))
         );
@@ -130,10 +129,10 @@ ENetPacket* Crypto::encryptSend(BareNetworkString& ns, bool reliable)
         iv[7] = val & 0xff;
     }
 
-    uint8_t* packet_start = p->data + 4 + m_tag_size;
+    uint8_t* packet_start = p->data + 8;
     if (mbedtls_gcm_crypt_and_tag(&m_aes_encrypt_context, MBEDTLS_GCM_ENCRYPT,
         ns.m_buffer.size(), iv.data(), iv.size(), NULL, 0, ns.m_buffer.data(),
-        packet_start, m_tag_size, p->data + 4) != 0)
+        packet_start, 4, p->data + 4) != 0)
     {
         enet_packet_destroy(p);
         return NULL;
@@ -150,7 +149,7 @@ ENetPacket* Crypto::encryptSend(BareNetworkString& ns, bool reliable)
 // ----------------------------------------------------------------------------
 NetworkString* Crypto::decryptRecieve(ENetPacket* p)
 {
-    int clen = (int)(p->dataLength - 4 - m_tag_size);
+    int clen = (int)(p->dataLength - 8);
     auto ns = std::unique_ptr<NetworkString>(new NetworkString(p->data, clen));
 
     std::array<uint8_t, 12> iv = {};
@@ -159,10 +158,10 @@ NetworkString* Crypto::decryptRecieve(ENetPacket* p)
     else
         memcpy(iv.data(), p->data, 4);
 
-    uint8_t* packet_start = p->data + 4 + m_tag_size;
+    uint8_t* packet_start = p->data + 8;
     uint8_t* tag = p->data + 4;
     if (mbedtls_gcm_auth_decrypt(&m_aes_decrypt_context, clen, iv.data(),
-        iv.size(), NULL, 0, tag, m_tag_size, packet_start, ns->m_buffer.data()) != 0)
+        iv.size(), NULL, 0, tag, 4, packet_start, ns->m_buffer.data()) != 0)
     {
         throw std::runtime_error("Failed authentication.");
     }

@@ -15,17 +15,19 @@
 //  along with this program; if not, write to the Free Software
 //  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
-#ifndef SERVER_ONLY // No GUI files in server builds
-
-// Manages includes common to all options screens
-#include "states_screens/options/options_common.hpp"
+#include "states_screens/options/user_screen.hpp"
 
 #include "addons/news_manager.hpp"
 #include "audio/sfx_manager.hpp"
 #include "challenges/unlock_manager.hpp"
 #include "config/player_manager.hpp"
+#include "config/user_config.hpp"
 #include "graphics/central_settings.hpp"
 #include "guiengine/screen_keyboard.hpp"
+#include "guiengine/widgets/check_box_widget.hpp"
+#include "guiengine/widgets/dynamic_ribbon_widget.hpp"
+#include "guiengine/widgets/label_widget.hpp"
+#include "guiengine/widgets/list_widget.hpp"
 #include "guiengine/widgets/text_box_widget.hpp"
 #include "online/link_helper.hpp"
 #include "online/request_manager.hpp"
@@ -33,7 +35,16 @@
 #include "states_screens/dialogs/kart_color_slider_dialog.hpp"
 #include "states_screens/dialogs/recovery_dialog.hpp"
 #include "states_screens/main_menu_screen.hpp"
+#include "states_screens/options/options_screen_audio.hpp"
+#include "states_screens/options/options_screen_general.hpp"
+#include "states_screens/options/options_screen_input.hpp"
+#include "states_screens/options/options_screen_language.hpp"
+#include "states_screens/options/options_screen_ui.hpp"
+#include "states_screens/options/options_screen_video.hpp"
 #include "states_screens/online/register_screen.hpp"
+#include "states_screens/state_manager.hpp"
+#include "utils/string_utils.hpp"
+#include "utils/translation.hpp"
 
 using namespace GUIEngine;
 
@@ -66,7 +77,7 @@ void BaseUserScreen::loadedFromFile()
 }   // loadedFromFile
 
 // ----------------------------------------------------------------------------
-/** Stores information from the register screen. It allows this screen to
+/** Stores information from the register screen. It allows this screen to 
  *  use the entered user name and password to prefill fields so that the user
  *  does not have to enter them again.
  *  \param online If the user created an online account.
@@ -94,14 +105,16 @@ void BaseUserScreen::beforeAddingWidget()
 }   // beforeAddingWidget
 
 // ----------------------------------------------------------------------------
-/** Initialises the user screen. Searches for all players to fill the
+/** Initialises the user screen. Searches for all players to fill the 
  *  list of users with their icons, and initialises all widgets for the
  *  current user (e.g. the online flag etc).
  */
 void BaseUserScreen::init()
 {
+#ifndef SERVER_ONLY
     getWidget<IconButtonWidget>("default_kart_color")
         ->setVisible(CVS->supportsColorization());
+#endif
 
     m_password_tb->setPasswordBox(true, L'*');
 
@@ -110,8 +123,8 @@ void BaseUserScreen::init()
     // this case no 'back' error should be shown.
     bool is_first_screen = StateManager::get()->getMenuStackSize()==1;
     getWidget<IconButtonWidget>("back")->setVisible(!is_first_screen);
-    getWidget<IconButtonWidget>("cancel")->setLabel(is_first_screen
-                                                    ? _("Exit game")
+    getWidget<IconButtonWidget>("cancel")->setLabel(is_first_screen 
+                                                    ? _("Exit game") 
                                                     : _("Cancel")      );
 
     m_sign_out_name = "";
@@ -289,9 +302,9 @@ void BaseUserScreen::makeEntryFieldsVisible()
     // and either is the current player and logged in (no need to enter a
     // password then) or has a saved session.
     if(player && online  &&
-        (player->hasSavedSession() ||
-          (player==PlayerManager::getCurrentPlayer() && player->isLoggedIn() )
-        )
+        (player->hasSavedSession() || 
+          (player==PlayerManager::getCurrentPlayer() && player->isLoggedIn() ) 
+        ) 
       )
     {
         // If we show the online login fields, but the player has a
@@ -362,7 +375,9 @@ void BaseUserScreen::eventCallback(Widget* widget,
                     {
                         UserConfigParams::m_internet_status =
                             Online::RequestManager::IPERM_ALLOWED;
+#ifndef SERVER_ONLY
                         NewsManager::get()->init(false);
+#endif
                         m_parent_screen->makeEntryFieldsVisible();
                         ModalDialog::dismiss();
                     }   // onConfirm
@@ -389,7 +404,8 @@ void BaseUserScreen::eventCallback(Widget* widget,
     }
     else if (name == "password_reset")
     {
-        new RecoveryDialog();
+        // Open password reset page
+        Online::LinkHelper::openURL(stk_config->m_password_reset_url);
     }
     else if (name == "options")
     {
@@ -412,6 +428,10 @@ void BaseUserScreen::eventCallback(Widget* widget,
         {
             // EscapePressed will pop this screen.
             StateManager::get()->escapePressed();
+        }
+        else if (button == "recover")
+        {
+            new RecoveryDialog();
         }
         else if (button == "rename")
         {
@@ -703,6 +723,8 @@ void BaseUserScreen::unloaded()
 {
 }   // unloaded
 
+
+
 // ============================================================================
 /** In the tab version, make sure the right tab is selected.
  */
@@ -726,12 +748,25 @@ void TabbedUserScreen::eventCallback(GUIEngine::Widget* widget,
     {
         std::string selection = ((RibbonWidget*)widget)->getSelectionIDString(PLAYER_ID_GAME_MASTER);
 
-        if (selection != "tab_players")
-            OptionsCommon::switchTab(selection);
+        Screen *screen = NULL;
+        if (selection == "tab_audio")
+            screen = OptionsScreenAudio::getInstance();
+        else if (selection == "tab_video")
+            screen = OptionsScreenVideo::getInstance();
+        //else if (selection == "tab_players")
+        //    screen = TabbedUserScreen::getInstance();
+        else if (selection == "tab_controls")
+            screen = OptionsScreenInput::getInstance();
+        else if (selection == "tab_ui")
+            screen = OptionsScreenUI::getInstance();
+        else if (selection == "tab_general")
+            screen = OptionsScreenGeneral::getInstance();
+        else if (selection == "tab_language")
+            screen = OptionsScreenLanguage::getInstance();
+        if(screen)
+            StateManager::get()->replaceTopMostScreen(screen);
     }
     else
         BaseUserScreen::eventCallback(widget, name, player_id);
 
 }   // eventCallback
-
-#endif // ifndef SERVER_ONLY

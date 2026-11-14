@@ -334,8 +334,6 @@ void StoryModeStatus::grandPrixFinished()
         unlockFeature(const_cast<ChallengeStatus*>(m_current_challenge), difficulty);
     }   // if isActive && challenge solved
 
-    // Calculate m_points again to count the current GP.
-    computeActive();
     RaceManager::get()->setCoinTarget(0);
 }   // grandPrixFinished
 
@@ -355,10 +353,10 @@ void StoryModeStatus::save(UTFWriter &out, bool current_player)
             story_mode_timer->pauseTimer(/*loading*/ false);
         }
 
-        if(m_first_time)
+        if(m_first_time) 
         {
             m_speedrun_milliseconds = 0;
-            m_story_mode_milliseconds = 0;
+            m_story_mode_milliseconds = 0;    
         }
         else
         {

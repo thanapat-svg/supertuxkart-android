@@ -202,7 +202,7 @@ bool EventHandler::OnEvent (const SEvent &event)
         {
             Log::verbose("keyboard", "char %d key %d ctrl %d down %d shift %d",
                 event.KeyInput.Char, event.KeyInput.Key,
-                event.KeyInput.Control, event.KeyInput.PressedDown,
+                event.KeyInput.Control, event.KeyInput.PressedDown, 
                 event.KeyInput.Shift);
         }
         // FIXME? it may be a bit unclean that all input events go trough
@@ -275,7 +275,6 @@ void EventHandler::processGUIAction(const PlayerAction action,
     }
 
     const bool pressedDown = value > Input::MAX_VALUE*2/3;
-    bool page_up = false;
 
     if (!pressedDown) return;
 
@@ -298,6 +297,8 @@ void EventHandler::processGUIAction(const PlayerAction action,
         case PA_ACCEL:
         case PA_MENU_UP:
         {
+            if (type == Input::IT_STICKBUTTON && !pressedDown)
+                break;
             sendNavigationEvent(NAV_UP, playerID);
             break;
         }
@@ -305,13 +306,15 @@ void EventHandler::processGUIAction(const PlayerAction action,
         case PA_BRAKE:
         case PA_MENU_DOWN:
         {
+            if (type == Input::IT_STICKBUTTON && !pressedDown)
+                break;
             sendNavigationEvent(NAV_DOWN, playerID);
             break;
         }
 
         case PA_RESCUE:
         case PA_MENU_CANCEL:
-            if (!isWithinATextBox())
+            if (pressedDown&& !isWithinATextBox())
             {
                 GUIEngine::getStateManager()->escapePressed();
             }
@@ -319,59 +322,19 @@ void EventHandler::processGUIAction(const PlayerAction action,
 
         case PA_FIRE:
         case PA_MENU_SELECT:
-        {
-            Widget* w = GUIEngine::getFocusForPlayer(playerID);
-            if (w == NULL) break;
-
-            // FIXME : consider returned value?
-            onWidgetActivated(w, playerID, type);
-            break;
-        }
-
-        case PA_MENU_PAGE_UP:
-            page_up = true;
-            // Fall-through
-        case PA_MENU_PAGE_DOWN:
-        {
-            Widget* w = GUIEngine::getFocusForPlayer(playerID);
-            if (w != nullptr && w->getType() == WTYPE_LIST)
+            if (pressedDown)
             {
-                ListWidget* list = dynamic_cast<ListWidget*>(w);
-                list->pageMove(page_up);
-            }
-            else
-            {
-                screen->handlePaging(page_up);
+                Widget* w = GUIEngine::getFocusForPlayer(playerID);
+                if (w == NULL) break;
+
+                // FIXME : consider returned value?
+                onWidgetActivated(w, playerID, type);
             }
             break;
-        }
-
-        case PA_MENU_END:
-        {
-            Widget* w = GUIEngine::getFocusForPlayer(playerID);
-            if (w != nullptr && w->getType() == WTYPE_LIST)
-            {
-                ListWidget* list = dynamic_cast<ListWidget*>(w);
-                list->listEnd();
-            }
-            break;
-        }
-
-        case PA_MENU_START:
-        {
-            Widget* w = GUIEngine::getFocusForPlayer(playerID);
-            if (w != nullptr && w->getType() == WTYPE_LIST)
-            {
-                ListWidget* list = dynamic_cast<ListWidget*>(w);
-                list->listStart();
-            }
-            break;
-        }
-
         default:
             return;
     }
-} // processGUIAction
+}
 
 // -----------------------------------------------------------------------------
 
@@ -380,8 +343,9 @@ static EventHandler* event_handler_singleton = NULL;
 EventHandler* EventHandler::get()
 {
     if (event_handler_singleton == NULL)
+    {
         event_handler_singleton = new EventHandler();
-
+    }
     return event_handler_singleton;
 }
 
@@ -406,16 +370,19 @@ void EventHandler::sendNavigationEvent(const NavigationDirection nav, const int 
     
     if (w != NULL)
     {
-        // Screen keyboard and modal dialogs override focus.
-        if (ScreenKeyboard::isActive() &&
-            !ScreenKeyboard::getCurrent()->isMyIrrChild(w->getIrrlichtElement()))
+        if (ScreenKeyboard::isActive())
         {
-            w = NULL;
+            if (!ScreenKeyboard::getCurrent()->isMyIrrChild(w->getIrrlichtElement()))
+            {
+                w = NULL;
+            }
         }
-        else if (ModalDialog::isADialogActive() &&
-            !ModalDialog::getCurrent()->isMyIrrChild(w->getIrrlichtElement()))
+        else if (ModalDialog::isADialogActive())
         {
-            w = NULL;
+            if (!ModalDialog::getCurrent()->isMyIrrChild(w->getIrrlichtElement()))
+            {
+                w = NULL;
+            }
         }
     }
     
@@ -424,11 +391,17 @@ void EventHandler::sendNavigationEvent(const NavigationDirection nav, const int 
         Widget* defaultWidget = NULL;
         
         if (ScreenKeyboard::isActive())
+        {
             defaultWidget = ScreenKeyboard::getCurrent()->getFirstWidget();
+        }
         else if (ModalDialog::isADialogActive())
+        {
             defaultWidget = ModalDialog::getCurrent()->getFirstWidget();
+        }
         else if (GUIEngine::getCurrentScreen() != NULL)
+        {
             defaultWidget = GUIEngine::getCurrentScreen()->getFirstWidget();
+        }
 
         if (defaultWidget != NULL)
         {
@@ -473,7 +446,7 @@ void EventHandler::sendNavigationEvent(const NavigationDirection nav, const int 
 
     if (!handled_by_widget)
     {
-        navigate(nav, GUIEngine::getFocusForPlayer(playerID), playerID);
+        navigate(nav, playerID);
     }
 } // sendNavigationEvent
 
@@ -483,9 +456,11 @@ void EventHandler::sendNavigationEvent(const NavigationDirection nav, const int 
  *
  * \param nav Determine in which direction to navigate
  */
-void EventHandler::navigate(const NavigationDirection nav, Widget* starting_widget, const int playerID)
+void EventHandler::navigate(const NavigationDirection nav, const int playerID)
 {
-    int next_id = findIDClosestWidget(nav, playerID, starting_widget, false);
+    Widget* w = GUIEngine::getFocusForPlayer(playerID);
+
+    int next_id = findIDClosestWidget(nav, playerID, w, false);
 
     if (next_id != -1)
     {
@@ -507,10 +482,9 @@ void EventHandler::navigate(const NavigationDirection nav, Widget* starting_widg
             assert(ribbon != NULL);
             if (ribbon->getRibbonType() == GUIEngine::RibbonType::RIBBON_VERTICAL_TABS)
             {
-                // Some of the tabs may be disabled. So we navigate until an active tab is found
-                (nav == NAV_UP) ? ribbon->setLastSelection(playerID)
-                                : ribbon->setFirstSelection(playerID);
-
+                int new_selection = (nav == NAV_UP) ?
+                                   ribbon->getActiveChildrenNumber(playerID) - 1 : 0;
+                ribbon->setSelection(new_selection, playerID);
                 // The tab selection triggers an action
                 sendEventToUser(ribbon, ribbon->m_properties[PROP_ID], playerID);
             }
@@ -532,20 +506,20 @@ void EventHandler::navigate(const NavigationDirection nav, Widget* starting_widg
 } // navigate
 
 /**
- * This function use simple heuristics to find the closest widget
- * in the requested direction.
+ * This function use simple heuristic to find the closest widget
+ * in the requested direction,
  * It prioritize widgets close vertically to widget close horizontally,
  * as it is expected behavior in any direction.
  * Several hardcoded values are used, having been found to work well
  * experimentally while keeping simple heuristics.
  */
 int EventHandler::findIDClosestWidget(const NavigationDirection nav, const int playerID,
-                                      Widget* w, bool ignore_disabled, int recursion_counter)
+                                      GUIEngine::Widget* w, bool ignore_disabled, int recursion_counter)
 {
     int closest_widget_id = -1;
     int distance = 0;
-    // So that the UI behavior doesn't change when it is upscaled
-    const int BIG_DISTANCE = irr_driver->getActualScreenSize().Width*500;
+    // So that the UI behavior don't change when it is upscaled
+    const int BIG_DISTANCE = irr_driver->getActualScreenSize().Width*100;
     int smallest_distance = BIG_DISTANCE;
     // Used when there is no suitable widget in the requested direction
     int closest_wrapping_widget_id = -1;
@@ -553,7 +527,7 @@ int EventHandler::findIDClosestWidget(const NavigationDirection nav, const int p
     int smallest_wrapping_distance = BIG_DISTANCE;
 
     // In theory, it's better to look recursively in m_widgets
-    // In practice, this is much much simpler and works equally well
+    // In practice, this is much much simpler and work equally well
     // Usual widget IDs begin at 100 and there is rarely more
     // than a few dozen of them - but it's very cheap to have some margin,
     for (int i=0;i<1000;i++)
@@ -564,14 +538,12 @@ int EventHandler::findIDClosestWidget(const NavigationDirection nav, const int p
         // - it doesn't match a widget
         // - it doesn't match a focusable widget
         // - it corresponds to the current widget
-        // - it corresponds to an invisible or disabled widget (while ignore_disabled is true)
+        // - it corresponds to an invisible or disabled widget
         // - the player is not allowed to select it
-        // - Its base coordinates are negative (such as buttons within ribbons)
         if (w_test == NULL || !Widget::isFocusableId(i) || w == w_test ||
             (!w_test->isVisible()   && ignore_disabled) ||
             (!w_test->isActivated() && ignore_disabled) ||
-            (playerID != PLAYER_ID_GAME_MASTER && !w_test->m_supports_multiplayer) ||
-            (w_test->m_x < 0) || (w_test->m_y < 0))
+            (playerID != PLAYER_ID_GAME_MASTER && !w_test->m_supports_multiplayer))
             continue;
 
         // Ignore empty ribbon widgets and lists
@@ -607,20 +579,23 @@ int EventHandler::findIDClosestWidget(const NavigationDirection nav, const int p
 
         if (nav == NAV_UP || nav == NAV_DOWN)
         {
-            // Compare current top point with other widget lowest point
             if (nav == NAV_UP)
+            {
+                // Compare current top point with other widget lowest point
                 distance = w->m_y - (w_test->m_y + w_test->m_h);
-
-            // compare current lowest point with other widget top point
+            }
             else
+            {
+                // compare current lowest point with other widget top point
                 distance = w_test->m_y - (w->m_y + w->m_h);
+            }
 
             // Better select an item on the side that one much higher,
             // so make the vertical distance matter much more
             // than the horizontal offset.
-            // The multiplicator of 500 is meant so that the offset will matter
+            // The multiplicator of 100 is meant so that the offset will matter
             // only if there are two or more widget with a (nearly) equal vertical height.
-            distance *= 500;
+            distance *= 100;
 
             wrapping_distance = distance;
             // if the two widgets are not well aligned, consider them farther
@@ -629,20 +604,22 @@ int EventHandler::findIDClosestWidget(const NavigationDirection nav, const int p
             // If w_test's are between w's,
             // we subtract the smaller from the bigger
             // else, the smaller is 0 and we keep the bigger
-            int left_offset = 10 * std::max(0, w_test->m_x - w->m_x);
-            int right_offset  = std::max(0, (w->m_x + w->m_w) - rightmost);
+            int right_offset = std::max(0, w_test->m_x - w->m_x);
+            int left_offset  = std::max(0, (w->m_x + w->m_w) - rightmost);
             offset = std::max (right_offset - left_offset, left_offset - right_offset);
         }
         else if (nav == NAV_LEFT || nav == NAV_RIGHT)
         {
-            // compare current leftmost point with other widget rightmost
             if (nav == NAV_LEFT)
+            {
+                // compare current leftmost point with other widget rightmost
                 distance = w->m_x - rightmost;
-
-            // compare current rightmost point with other widget leftmost
+            }
             else
+            {
+                // compare current rightmost point with other widget leftmost
                 distance = w_test->m_x - (w->m_x + w->m_w);
-
+            }
             wrapping_distance = distance;
 
             int down_offset = std::max(0, w_test->m_y - w->m_y);
@@ -697,7 +674,6 @@ int EventHandler::findIDClosestWidget(const NavigationDirection nav, const int p
 
     int closest_id = (smallest_distance < BIG_DISTANCE) ? closest_widget_id :
                                                           closest_wrapping_widget_id;
-
     Widget* w_test = GUIEngine::getWidget(closest_id);
     
     if (w_test == NULL)
@@ -708,18 +684,20 @@ int EventHandler::findIDClosestWidget(const NavigationDirection nav, const int p
     // This allows to skip over disabled/invisible widgets in a grid
     if (!w_test->isVisible() || !w_test->isActivated())
     {
-        // Can skip over at most 3 consecutive disabled/invisible widgets
+        // Can skip over at most 3 consecutive disabled/invisible widget
         if (recursion_counter <=2)
-            closest_id = findIDClosestWidget(nav, playerID, w_test, /*ignore disabled*/ false, recursion_counter + 1);
-        // We have only found disabled/invisible widgets on our path
+        {
+            recursion_counter++;
+            return findIDClosestWidget(nav, playerID, w_test, /*ignore disabled*/ false, recursion_counter);
+        }
+        // If nothing has been found, do a search ignoring disabled/invisible widgets,
+        // restarting from the initial focused widget (otherwise, it could lead to weird results) 
         else if (recursion_counter == 3)
-            closest_id = -1;
+        {
+            Widget* w_focus = GUIEngine::getFocusForPlayer(playerID);
+            return findIDClosestWidget(nav, playerID, w_focus, /*ignore disabled*/ true, recursion_counter);
+        }
     }
-
-    // If nothing has been found or if we looped back to the starting widget (see issue #5283),
-    // do a search ignoring disabled/invisible widgets, restarting from the initial widget
-    if (recursion_counter == 0 && (closest_id == -1 || GUIEngine::getWidget(closest_id) == w))
-        closest_id = findIDClosestWidget(nav, playerID, w, /*ignore disabled*/ true, 1 /* avoid infinite loops */);
 
     return closest_id;
 } // findIDClosestWidget
@@ -728,16 +706,20 @@ int EventHandler::findIDClosestWidget(const NavigationDirection nav, const int p
 
 void EventHandler::sendEventToUser(GUIEngine::Widget* widget, std::string& name, const int playerID)
 {
-    if (ScreenKeyboard::isActive() &&
-        ScreenKeyboard::getCurrent()->processEvent(widget->m_properties[PROP_ID]) != EVENT_LET)
+    if (ScreenKeyboard::isActive())
     {
-        return;
+        if (ScreenKeyboard::getCurrent()->processEvent(widget->m_properties[PROP_ID]) != EVENT_LET)
+        {
+            return;
+        }
     }
     
-    if (ModalDialog::isADialogActive() &&
-        ModalDialog::getCurrent()->processEvent(widget->m_properties[PROP_ID]) != EVENT_LET)
+    if (ModalDialog::isADialogActive())
     {
-        return;
+        if (ModalDialog::getCurrent()->processEvent(widget->m_properties[PROP_ID]) != EVENT_LET)
+        {
+            return;
+        }
     }
 
     if (getCurrentScreen() != NULL)
@@ -869,7 +851,7 @@ EventPropagation EventHandler::onGUIEvent(const SEvent& event)
                 if (ScreenKeyboard::isActive())
                 {
                     // check for parents too before discarding event
-                    if (!ScreenKeyboard::getCurrent()->isMyChild(w) &&
+                    if (!ScreenKeyboard::getCurrent()->isMyChild(w) && 
                         w->m_event_handler != NULL)
                     {
                         if (!ScreenKeyboard::getCurrent()->isMyChild(w->m_event_handler))
@@ -881,7 +863,7 @@ EventPropagation EventHandler::onGUIEvent(const SEvent& event)
                 else if (ModalDialog::isADialogActive())
                 {
                     // check for parents too before discarding event
-                    if (!ModalDialog::getCurrent()->isMyChild(w) &&
+                    if (!ModalDialog::getCurrent()->isMyChild(w) && 
                         w->m_event_handler != NULL)
                     {
                         if (!ModalDialog::getCurrent()->isMyChild(w->m_event_handler))
@@ -975,7 +957,7 @@ EventPropagation EventHandler::onGUIEvent(const SEvent& event)
             {
                 // currently, enter pressed in text ctrl events can only happen in dialogs.
                 // FIXME : find a cleaner way to route the event to its proper location
-                if (!ScreenKeyboard::isActive() && ModalDialog::isADialogActive())
+                if (!ScreenKeyboard::isActive() && ModalDialog::isADialogActive()) 
                     ModalDialog::onEnterPressed();
                 break;
             }

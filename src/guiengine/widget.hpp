@@ -80,11 +80,7 @@ namespace GUIEngine
         /** A anchor badge to indicate that this player receives a handicap */
         ANCHOR_BADGE   = 256,
         /** A down arrow badge to indicate new addons for downloading */
-        DOWN_BADGE     = 512,
-        /** A heart badge, to indicate e.g. a favorite track */
-        HEART_BADGE    = 1024,
-        /** A red dot badge, to indicate there's something new inside */
-        REDDOT_BADGE   = 2048
+        DOWN_BADGE   = 512
     };
 
 
@@ -409,17 +405,7 @@ namespace GUIEngine
         virtual EventPropagation onActivationInput(const int playerID) { return EVENT_LET; }
 
         /**
-         * Call to reset its coordinates before they are updated by layout manager.
-         */
-        void resetCoordinates();
-
-        /**
-         * Call to resize the widget after its coordinates are updated.
-         */
-        virtual void resize();
-
-        /**
-         * Move the widget to the given position.
+         * Call to resize/move the widget. Not all widgets can resize gracefully.
          */
         virtual void move(const int x, const int y, const int w, const int h);
 
@@ -439,9 +425,9 @@ namespace GUIEngine
          * \{
          */
 
-        /** \brief Sets an widget to be either activated or deactivated
+        /** \brief Sets an widget to be either activated or deactivated 
          *  (i.e. greyed out)
-         *  \param active Active (true) or deactive (false). Defaults to
+         *  \param active Active (true) or deactive (false). Defaults to 
          *         true. */
         virtual void setActive(bool active=true);
 
@@ -521,10 +507,6 @@ namespace GUIEngine
           * \pre Only call this method after the widget has been add()ed
           */
         int getID() const { return m_id; }
-
-        /** Get the name used for this widget in the GUI files or set in the code
-         * Use only for debugging. */
-        std::string getName() { return m_properties[PROP_ID]; }
 
         /** Get whether this object is allowed to receive focus */
         bool isFocusable() const { return m_focusable; }
@@ -728,7 +710,6 @@ namespace GUIEngine
         irr::core::stringw getTooltipText() const { return m_tooltip_text; }
 
         void setTooltip(irr::core::stringw s) { m_tooltip_text = s; m_has_tooltip = true; }
-        void unsetTooltip() { m_tooltip_text = ""; m_has_tooltip = false; }
 
         /**
          * \}

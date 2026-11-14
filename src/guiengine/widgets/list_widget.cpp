@@ -22,8 +22,6 @@
 #include "guiengine/CGUISpriteBank.hpp"
 #include "guiengine/engine.hpp"
 #include "io/file_manager.hpp"
-#include "utils/log.hpp"
-#include "utils/string_utils.hpp"
 
 #include <IGUIElement.h>
 #include <IGUISkin.h>
@@ -54,7 +52,7 @@ ListWidget::ListWidget() : Widget(WTYPE_LIST)
 
 // -----------------------------------------------------------------------------
 
-void ListWidget::setIcons(STKModifiedSpriteBank* icons)
+void ListWidget::setIcons(STKModifiedSpriteBank* icons, int size)
 {
     m_use_icons = (icons != NULL);
     m_icons = icons;
@@ -65,65 +63,52 @@ void ListWidget::setIcons(STKModifiedSpriteBank* icons)
     if (m_use_icons)
     {
         list->setSpriteBank(m_icons);
+
+        // determine needed height
+        int item_height = 0;
+        if (size > 0)
+        {
+            item_height = size;
+        }
+        else
+        {
+            const core::array< core::rect<s32> >& rects = m_icons->getPositions();
+            const int count = rects.size();
+            for (int n=0; n<count; n++)
+            {
+                const int h = rects[n].getHeight();
+                if (h > item_height) item_height = h;
+            }
+        }
+
+        if (item_height > 0)
+        {
+            list->setItemHeight( item_height );
+        }
     }
     else
     {
         list->setSpriteBank(NULL);
     }
 
-}   // setIcons
-
-// -----------------------------------------------------------------------------
-void ListWidget::setLineHeightScale(float scale)
-{
-    // If the requested scale is too small, we adjust it back to something
-    // that prevents text on different lines from mashing together.
-    if (scale < 0.75f)
-        scale = 0.75f;
-    
-    m_line_height_scale = scale;
-    updateScale();
-}   // setLineHeightScale
-
-// -----------------------------------------------------------------------------
-void ListWidget::updateScale()
-{
-    CGUISTKListBox* list = getIrrlichtElement<CGUISTKListBox>();
-    assert(list != NULL);
-
-    // determine needed height
-    int item_height = (int)(m_line_height_scale * GUIEngine::getFontHeight());
-
-    if (item_height > 0)
-    {
-        list->setItemHeight(item_height);
-    }
-}   // updateScale
-
-// -----------------------------------------------------------------------------
-int ListWidget::getHeaderHeight() const
-{
-    return GUIEngine::getFontHeight() + 15;
 }
 
-// -----------------------------------------------------------------------------
-rect<s32> ListWidget::getListBoxSize() const
-{
-    return m_header.size() > 0 ?
-        rect<s32>(m_x, m_y + getHeaderHeight(), m_x + m_w, m_y + m_h) :
-        rect<s32>(m_x, m_y, m_x + m_w, m_y + m_h);
-}
 
 // -----------------------------------------------------------------------------
 void ListWidget::add()
 {
+    const int header_height = GUIEngine::getFontHeight() + 15;
+
+    rect<s32> widget_size = (m_header.size() > 0 ? rect<s32>(m_x, m_y + header_height, m_x + m_w, m_y + m_h) :
+                                                   rect<s32>(m_x, m_y, m_x + m_w, m_y + m_h) );
+
     IGUISkin * current_skin = GUIEngine::getGUIEnv()->getSkin();
     IGUIFont * current_font = GUIEngine::getGUIEnv()->getBuiltInFont();
     CGUISTKListBox * list_box = new CGUISTKListBox(
         GUIEngine::getGUIEnv(),
         m_parent ? m_parent : GUIEngine::getGUIEnv()->getRootGUIElement(),
         getNewID(),
-        getListBoxSize(),
+        widget_size,
         true,
         true,
         false);
@@ -145,11 +130,6 @@ void ListWidget::add()
     m_element = list_box;
     m_element->setTabOrder( list_box->getID() );
 
-    float temp_scale = 1.0f;
-    // If the properties is not a valid float, fromString will not change temp_scale
-    StringUtils::fromString(m_properties[PROP_LINE_HEIGHT], temp_scale);
-    setLineHeightScale(temp_scale);
-
     createHeader();
 }
 
@@ -160,8 +140,20 @@ void ListWidget::createHeader()
     if (m_header_created)
         return;
 
+    const int header_height = GUIEngine::getFontHeight() + 15;
+
     if (m_header.size() > 0)
     {
+        //const int col_size = m_w / m_header.size();
+
+        int proportion_total = 0;
+        for (unsigned int n=0; n<m_header.size(); n++)
+        {
+            proportion_total += m_header[n].m_proportion;
+        }
+
+        int x = m_x;
+        int scrollbar_width = GUIEngine::getSkin()->getSize(EGDS_SCROLLBAR_SIZE);
         for (unsigned int n=0; n<m_header.size()+1; n++)
         {
             std::ostringstream name;
@@ -185,6 +177,25 @@ void ListWidget::createHeader()
                 header = icon;
             }
             header->m_reserved_id = getNewNoFocusID();
+
+            header->m_y = m_y;
+            header->m_h = header_height;
+
+            header->m_x = x;
+            if (n == m_header.size())
+            {
+                header->m_w = scrollbar_width;
+                header->setActive(false);
+            }
+            else
+            {
+                int header_width = m_w - scrollbar_width;
+                header->m_w = (int)(header_width * float(m_header[n].m_proportion)
+                                    /float(proportion_total));
+            }
+
+            x += header->m_w;
+
             header->m_properties[PROP_ID] = name.str();
 
             header->add();
@@ -199,8 +210,6 @@ void ListWidget::createHeader()
         m_check_inside_me = true;
     }
     m_header_created = true;
-
-    updateHeader();
 } // createHeader
 
 // -----------------------------------------------------------------------------
@@ -223,9 +232,6 @@ void ListWidget::clearColumns()
     m_header.clear();
     for (unsigned int n=0; n<m_header_elements.size(); n++)
     {
-        irr::gui::IGUIElement* e = m_header_elements[n].getIrrlichtElement();
-        if (e)
-            e->remove();
         m_header_elements[n].elementRemoved();
         m_children.remove( m_header_elements.get(n) );
     }
@@ -249,6 +255,10 @@ void ListWidget::addItem(   const std::string& internal_name,
     newItem.m_internal_name = internal_name;
     newItem.m_contents.push_back(cell);
     newItem.m_word_wrap = (m_properties[PROP_WORD_WRAP] == "true");
+    newItem.m_line_height_scale = m_properties[PROP_LINE_HEIGHT] == "small"  ? 0.75f :
+                                  m_properties[PROP_LINE_HEIGHT] == "normal" ? 1.0f  :
+                                  m_properties[PROP_LINE_HEIGHT] == "big"    ? 1.25f : 1.0f;
+
 
     CGUISTKListBox* list = getIrrlichtElement<CGUISTKListBox>();
     assert(list != NULL);
@@ -277,6 +287,9 @@ void ListWidget::addItem(const std::string& internal_name,
         newItem.m_contents.push_back(contents[i]);
     }
     newItem.m_word_wrap = (m_properties[PROP_WORD_WRAP] == "true");
+    newItem.m_line_height_scale = m_properties[PROP_LINE_HEIGHT] == "small"  ? 0.75f :
+                                  m_properties[PROP_LINE_HEIGHT] == "normal" ? 1.0f  :
+                                  m_properties[PROP_LINE_HEIGHT] == "big"    ? 1.25f : 1.0f;
 
     CGUISTKListBox* list = getIrrlichtElement<CGUISTKListBox>();
     assert(list != NULL);
@@ -291,7 +304,7 @@ void ListWidget::addItem(const std::string& internal_name,
 }
 
 // -----------------------------------------------------------------------------
-void ListWidget::renameCell(const int row_index, const int col_index,
+void ListWidget::renameCell(const int row_index, const int col_index, 
                             const irr::core::stringw &newName, const int icon)
 {
     // May only be called AFTER this widget has been add()ed
@@ -314,7 +327,7 @@ void ListWidget::renameItem(const int row_index,
 }
 
 // -----------------------------------------------------------------------------
-void ListWidget::renameItem(const std::string &internal_name,
+void ListWidget::renameItem(const std::string &internal_name, 
                             const irr::core::stringw &newName, const int icon)
 {
     CGUISTKListBox* list = getIrrlichtElement<CGUISTKListBox>();
@@ -645,42 +658,6 @@ EventPropagation ListWidget::moveToNextItem(const bool reverse)
 } // moveToNextItem
 
 // -----------------------------------------------------------------------------
-void ListWidget::pageMove(bool up)
-{
-    // if widget is deactivated, do nothing
-    if (m_deactivated) return;
-
-    int item_height = getIrrlichtElement<CGUISTKListBox>()->getItemHeight();
-    int items_per_page = (m_h - getHeaderHeight()) / item_height;
-    int selectionID = (up) ? getSelectionID() - items_per_page
-                           : getSelectionID() + items_per_page;
-    if (selectionID < 0)
-        selectionID = 0;
-    else if (selectionID > getItemCount() - 1)
-        selectionID = getItemCount() - 1;
-
-    setSelectionID(selectionID);
-} // pageMove
-
-// -----------------------------------------------------------------------------
-void ListWidget::listEnd()
-{
-    // if widget is deactivated, do nothing
-    if (m_deactivated) return;
-
-    setSelectionID(getItemCount() - 1);
-} // listEnd
-
-// -----------------------------------------------------------------------------
-void ListWidget::listStart()
-{
-    // if widget is deactivated, do nothing
-    if (m_deactivated) return;
-
-    setSelectionID(0);
-} // listStart
-
-// -----------------------------------------------------------------------------
 int ListWidget::getItemID(const std::string &internalName) const
 {
     const CGUISTKListBox* list = getIrrlichtElement<CGUISTKListBox>();
@@ -693,52 +670,4 @@ void ListWidget::setActive(bool active)
 {
     Widget::setActive(active);
     getIrrlichtElement<CGUISTKListBox>()->setDisactivated(!active);
-}
-
-// -----------------------------------------------------------------------------
-void ListWidget::updateHeader()
-{
-    if (m_header.size() > 0)
-    {
-        int proportion_total = 0;
-        for (unsigned int n = 0; n < m_header.size(); n++)
-        {
-            proportion_total += m_header[n].m_proportion;
-        }
-
-        int x = m_x;
-        int scrollbar_width = GUIEngine::getSkin()->getSize(EGDS_SCROLLBAR_SIZE);
-        for (unsigned int n = 0; n < m_header.size() + 1; n++)
-        {
-            Widget* header = m_header_elements.get(n);
-            header->m_y = m_y;
-            header->m_h = getHeaderHeight();
-
-            header->m_x = x;
-            if (n == m_header.size())
-            {
-                header->m_w = scrollbar_width;
-                header->setActive(false);
-            }
-            else
-            {
-                int header_width = m_w - scrollbar_width;
-                header->m_w = (int)(header_width * float(m_header[n].m_proportion)
-                                    / float(proportion_total));
-                header->setActive(true);
-            }
-
-            x += header->m_w;
-            header->resize();
-        }
-    }
-}
-
-// -----------------------------------------------------------------------------
-void ListWidget::resize()
-{
-    if (m_element)
-        m_element->setRelativePosition(getListBoxSize());
-    updateHeader();
-    updateScale();
 }

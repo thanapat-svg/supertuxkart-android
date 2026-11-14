@@ -33,7 +33,6 @@
 #include "tracks/track.hpp"
 #include "utils/string_utils.hpp"
 
-#include <IFileSystem.h>
 #include <ITexture.h>
 #include <SMaterial.h>
 #include <IMeshBuffer.h>
@@ -143,8 +142,6 @@ Material* MaterialManager::getMaterialSPM(std::string lay_one_tex_lc,
             }
         }   // for i
     }
-    if (def_shader_name.empty())
-        return NULL;
     Log::debug("MaterialManager", "Couldn't find cached SP material! Opening default %s!", original_layer_one.c_str());
     return getDefaultSPMaterial(def_shader_name,
         is_full_path ?
@@ -207,10 +204,7 @@ Material* MaterialManager::getMaterialFor(video::ITexture* t,
 void MaterialManager::setAllMaterialFlags(video::ITexture* t,
                                           scene::IMeshBuffer *mb)
 {
-    io::path fp = file_manager->getFileSystem()->getAbsolutePath(t->getName());
-    video::ITexture* t1 = mb->getMaterial().getTexture(1);
-    Material* mat = getMaterialSPM(fp.c_str(),
-        t1 ? StringUtils::getBasename(t1->getFullPath().c_str()) : "" , "");
+    Material* mat = getMaterialFor(t, mb);
     if (mat != NULL)
     {
         mat->setMaterialProperties(&(mb->getMaterial()), mb);

@@ -18,8 +18,7 @@
 #include "states_screens/dialogs/registration_dialog.hpp"
 
 #include "guiengine/engine.hpp"
-#include "guiengine/widgets/label_widget.hpp"
-#include "guiengine/widgets/ribbon_widget.hpp"
+#include "guiengine/widgets.hpp"
 #include "states_screens/state_manager.hpp"
 #include "states_screens/online/register_screen.hpp"
 #include "utils/translation.hpp"
@@ -46,7 +45,7 @@ RegistrationDialog::RegistrationDialog() :
         "If you have any questions or comments regarding these "
         "terms, one of the members of the development team would gladly "
         "assist you.",
-        StringUtils::utf8ToWide(stk_config->m_terms_url));
+        "https://terms.supertuxkart.net");
     terms_widget->setText(terms, false);
 
    // showRegistrationTerms();

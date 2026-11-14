@@ -31,8 +31,6 @@
 
 #include <algorithm>
 #include <string>
-#include <IrrlichtDevice.h>
-#include <IGUIEnvironment.h>
 
 using namespace GUIEngine;
 // ============================================================================
@@ -102,13 +100,13 @@ ScreenKeyboard* ScreenKeyboard::m_screen_keyboard = NULL;
 
 // ----------------------------------------------------------------------------
 /** The screen keyboard constructor
- *  \param percent_width A relative value in range of 0.0 to 1.0 that
+ *  \param percent_width A relative value in range of 0.0 to 1.0 that 
  *         determines width of the screen that will be used by the keyboard.
- *  \param percent_height A relative value in range of 0.0 to 1.0 that
+ *  \param percent_height A relative value in range of 0.0 to 1.0 that 
  *         determines height of the screen that will be used by the keyboard.
  *  \param edit_box The edit box that is assigned to the keyboard.
  */
-ScreenKeyboard::ScreenKeyboard(float percent_width, float percent_height,
+ScreenKeyboard::ScreenKeyboard(float percent_width, float percent_height, 
                                CGUIEditBox* edit_box)
 {
     if (m_screen_keyboard != NULL)
@@ -147,7 +145,10 @@ ScreenKeyboard::~ScreenKeyboard()
 }   // ~ScreenKeyboard
 
 // ----------------------------------------------------------------------------
-void ScreenKeyboard::setArea()
+/** Screen keyboard initialization, needs to be called after new to take into
+ *  account for runtime polymorphism
+ */
+void ScreenKeyboard::init()
 {
     const core::dimension2d<u32>& frame_size = irr_driver->getFrameSize();
 
@@ -173,15 +174,7 @@ void ScreenKeyboard::setArea()
 #endif
 
     m_area = core::rect<s32>(x, y, x + w, y + h);
-}   // setArea
 
-// ----------------------------------------------------------------------------
-/** Screen keyboard initialization, needs to be called after new to take into
- *  account for runtime polymorphism
- */
-void ScreenKeyboard::init()
-{
-    setArea();
     m_irrlicht_window = GUIEngine::getGUIEnv()->addWindow(m_area, true);
     m_irrlicht_window->setDrawTitlebar(false);
     m_irrlicht_window->getCloseButton()->setVisible(false);
@@ -190,12 +183,7 @@ void ScreenKeyboard::init()
     m_previous_mode=input_manager->getMode();
     input_manager->setMode(InputManager::MENU);
     
-    initButtons();
-
-    LayoutManager::calculateLayout(m_widgets, this);
-    addWidgetsRecursively(m_widgets);
-    assert(m_buttons.size() > 0);
-    m_buttons[0]->setFocusForPlayer(PLAYER_ID_GAME_MASTER);
+    createButtons();
     assignButtons(getDefaultButtonsType());
     
     Widget* button_widget = getWidget<ButtonWidget>("Back");
@@ -204,9 +192,9 @@ void ScreenKeyboard::init()
 }   // init
 
 // ----------------------------------------------------------------------------
-/** Initializes all button widgets
+/** Creates all button widgets
  */
-void ScreenKeyboard::initButtons()
+void ScreenKeyboard::createButtons()
 {
     const auto& layout_proportions = getKeyboardLayoutProportions();
     int rows_num = layout_proportions.size();
@@ -214,7 +202,6 @@ void ScreenKeyboard::initButtons()
 
     const int margin = 2;
     int height = (m_area.getHeight() - 2 * pos_y) / rows_num - margin;
-    unsigned index = 0;
 
     for (int i = 0; i < rows_num; i++)
     {
@@ -227,7 +214,7 @@ void ScreenKeyboard::initButtons()
             total_width -= total_padding;
 
         char tmp[100];
-        snprintf(tmp, 100, "%i", pos_y + (height + margin) * i);
+        sprintf(tmp, "%i", pos_y + (height + margin) * i);
         std::string pos_y_str = tmp;
         
         int total_proportions = 0;
@@ -241,29 +228,19 @@ void ScreenKeyboard::initButtons()
         
         for (int j = 0; j < cols_num; j++)
         {
-            ButtonWidget* button = NULL;
-            if (index < m_buttons.size())
-            {
-                button = m_buttons[index];
-            }
-            else
-            {
-                button = new ButtonWidget();
-                m_widgets.push_back(button);
-                m_buttons.push_back(button);
-            }
+            ButtonWidget* button = new ButtonWidget();
 
-            float width = (float)total_width * layout_proportions[i][j]
+            float width = (float)total_width * layout_proportions[i][j] 
                                              / total_proportions - margin;
             
             char width_str[100];
-            snprintf(width_str, 100, "%i", (int)roundf(width / (SkinConfig::getHorizontalInnerPadding(button->getType(), button)+1.0f)));
+            sprintf(width_str, "%i", (int)roundf(width / (SkinConfig::getHorizontalInnerPadding(button->getType(), button)+1.0f)));
 
             char height_str[100];
-            snprintf(height_str, 100, "%i", (int)roundf(height / (SkinConfig::getVerticalInnerPadding(button->getType(), button)+1.0f)));
+            sprintf(height_str, "%i", (int)roundf(height / (SkinConfig::getVerticalInnerPadding(button->getType(), button)+1.0f)));
             
             char tmp[100];
-            snprintf(tmp, 100, "%i", (int)roundf(pos_x));
+            sprintf(tmp, "%i", (int)roundf(pos_x));
             std::string pos_x_str = tmp;
             
             button->setParent(m_irrlicht_window);
@@ -271,13 +248,19 @@ void ScreenKeyboard::initButtons()
             button->m_properties[PROP_HEIGHT] = height_str;
             button->m_properties[PROP_X] = pos_x_str;
             button->m_properties[PROP_Y] = pos_y_str;
+            m_widgets.push_back(button);
+            m_buttons.push_back(button);
             
             pos_x += width + margin;
-            index++;
         }
     }
 
-}   // initButtons
+    LayoutManager::calculateLayout(m_widgets, this);
+    addWidgetsRecursively(m_widgets);
+    
+    assert(m_buttons.size() > 0);
+    m_buttons[0]->setFocusForPlayer(PLAYER_ID_GAME_MASTER);
+}   // createButtons
 
 // ----------------------------------------------------------------------------
 core::stringw ScreenKeyboard::getKeyName(std::string key_id)
@@ -305,16 +288,6 @@ core::stringw ScreenKeyboard::getKeyName(std::string key_id)
     }
     return key_name;
 }
-
-// ----------------------------------------------------------------------------
-void ScreenKeyboard::onResize()
-{
-    setArea();
-    m_irrlicht_window->setRelativePosition(m_area);
-    initButtons();
-    LayoutManager::calculateLayout(m_widgets, this);
-    resizeWidgetsRecursively(m_widgets);
-}   // onResize
 
 // ----------------------------------------------------------------------------
 /** A function that allows to select one of the available buttons layout
@@ -389,7 +362,7 @@ void ScreenKeyboard::onUpdate(float dt)
         m_repeat_time += (unsigned int)(dt * 1000);
     }
     
-    if (!m_back_button->isPressed())
+    if (!m_back_button->isPressed())  
     {
         m_back_button_pressed = false;
         m_repeat_time = 0;

@@ -27,34 +27,19 @@
   */
 
 #include <algorithm>
-#include <array>
 #include <atomic>
 #include <memory>
 #include <string>
 #include <vector>
 
-#include <irrString.h>
-#include <rect.h>
-#include <SColor.h>
-
-namespace irr
-{
-    namespace scene
-    {
-        class IMesh; class ISceneNode;
-    }
-    namespace video
-    {
-        class IImage; class ITexture;
-    }
-}
+#include <irrlicht.h>
 
 using namespace irr;
 
 #include "LinearMath/btTransform.h"
 
+#include "utils/aligned_array.hpp"
 #include "utils/log.hpp"
-#include "utils/random_generator.hpp"
 #include "utils/vec3.hpp"
 #include "utils/stk_process.hpp"
 
@@ -66,6 +51,7 @@ class ItemManager;
 class ModelDefinitionLoader;
 class MovingTexture;
 class MusicInformation;
+class ParticleEmitter;
 class ParticleKind;
 class PhysicalObject;
 class RenderTarget;
@@ -141,7 +127,7 @@ private:
 
     /** Start transforms of karts (either the default, or the ones taken
      *  from the scene file). */
-    std::vector<btTransform> m_start_transforms;
+    AlignedArray<btTransform> m_start_transforms;
 
     std::string              m_item_style;
     std::string              m_description;
@@ -424,7 +410,6 @@ private:
     void freeCachedMeshVertexBuffer();
     void copyFromMainProcess();
     video::IImage* getSkyTexture(std::string path) const;
-    scene::IMesh* getClonedMesh(const std::string& filename) const;
 public:
 
     /** Static function to get the current track. NULL if no current
@@ -564,8 +549,7 @@ public:
     */
     void shuffleStartTransforms()
     {
-       std::shuffle(m_start_transforms.begin(), m_start_transforms.end(),
-                    RandomGenerator::getGenerator());
+        std::random_shuffle(m_start_transforms.begin(), m_start_transforms.end());
     }
     // ------------------------------------------------------------------------
     /** Sets pointer to the aabb of this track. */
@@ -745,8 +729,7 @@ public:
     // ------------------------------------------------------------------------
     bool isAddon() const                                 { return m_is_addon; }
     // ------------------------------------------------------------------------
-    void convertTrackToBullet(scene::ISceneNode *node,
-                      std::vector<std::array<btVector3, 3> >* occluder = NULL);
+    void convertTrackToBullet(scene::ISceneNode *node);
     // ------------------------------------------------------------------------
     CheckManager* getCheckManager() const           { return m_check_manager; }
     // ------------------------------------------------------------------------

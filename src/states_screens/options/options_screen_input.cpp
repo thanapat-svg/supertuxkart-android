@@ -15,28 +15,43 @@
 //  along with this program; if not, write to the Free Software
 //  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
-#ifndef SERVER_ONLY // No GUI files in server builds
+#include "states_screens/options/options_screen_input.hpp"
 
-// Manages includes common to all options screens
-#include "states_screens/options/options_common.hpp"
-
+#include "config/user_config.hpp"
 #include "graphics/irr_driver.hpp"
 #include "guiengine/CGUISpriteBank.hpp"
+#include "guiengine/screen.hpp"
+#include "guiengine/widget.hpp"
+#include "guiengine/widgets/button_widget.hpp"
 #include "guiengine/widgets/list_widget.hpp"
+#include "guiengine/widgets/ribbon_widget.hpp"
 #include "input/device_manager.hpp"
 #include "input/gamepad_device.hpp"
 #include "input/input_manager.hpp"
+#include "io/file_manager.hpp"
+#include "states_screens/options/options_screen_device.hpp"
+#include "states_screens/options/options_screen_audio.hpp"
+#include "states_screens/options/options_screen_general.hpp"
+#include "states_screens/options/options_screen_language.hpp"
+#include "states_screens/options/options_screen_video.hpp"
+#include "states_screens/options/options_screen_ui.hpp"
 #include "states_screens/dialogs/add_device_dialog.hpp"
 #include "states_screens/dialogs/multitouch_settings_dialog.hpp"
-#include "states_screens/options/options_screen_device.hpp"
+#include "states_screens/state_manager.hpp"
+#include "states_screens/options/user_screen.hpp"
+#include "utils/string_utils.hpp"
+#include "utils/translation.hpp"
 
-#include <IrrlichtDevice.h>
+#include <iostream>
+#include <sstream>
+#include <set>
+#include <algorithm>
 
 using namespace GUIEngine;
 
 // -----------------------------------------------------------------------------
 
-OptionsScreenInput::OptionsScreenInput() : Screen("options/options_input.stkgui")
+OptionsScreenInput::OptionsScreenInput() : Screen("options_input.stkgui")
 {
 }   // OptionsScreenInput
 
@@ -57,7 +72,9 @@ void OptionsScreenInput::loadedFromFile()
     m_icon_bank->addTextureAsSprite(icon4);
     m_icon_bank->addTextureAsSprite(icon5);
 
-    m_icon_bank->setScale(1.0f / 72.0f);
+    // scale icons depending on font height
+    const float scale = GUIEngine::getFontHeight() / 72.0f;
+    m_icon_bank->setScale(scale);
     m_icon_bank->setTargetIconSize(128, 128);
     m_gamepad_count = 0;
 }   // loadFromFile
@@ -118,12 +135,12 @@ void OptionsScreenInput::buildDeviceList()
             {
                 // since irrLicht's list widget has the nasty tendency to put the
                 // icons very close to the text, I'm adding spaces to compensate.
-                name = (core::stringw("   ") +
+                name = (core::stringw("   ") + 
                              config->getConfigName());
             }
             else
             {
-                name = ("   " + config->getName()).c_str();
+                name = ("   " + config->getName()).c_str();   
 
                 if (config->getNumberOfDevices() > 1)
                 {
@@ -147,7 +164,7 @@ void OptionsScreenInput::buildDeviceList()
                                                         
     if (touch_device != NULL)
     {
-        devices->addItem("touch_device", (core::stringw("   ") +
+        devices->addItem("touch_device", (core::stringw("   ") + 
                                                 _("Touch Device")).c_str(), 4);
     }
 }   // buildDeviceList
@@ -156,8 +173,6 @@ void OptionsScreenInput::buildDeviceList()
 void OptionsScreenInput::init()
 {
     Screen::init();
-    OptionsCommon::setTabStatus();
-
     RibbonWidget* tabBar = this->getWidget<RibbonWidget>("options_choice");
     assert(tabBar != NULL);
     tabBar->setFocusForPlayer(PLAYER_ID_GAME_MASTER);
@@ -166,6 +181,7 @@ void OptionsScreenInput::init()
     DynamicRibbonWidget* devices = this->getWidget<DynamicRibbonWidget>("devices");
     assert( devices != NULL );
     */
+
 
     buildDeviceList();
 
@@ -179,7 +195,6 @@ void OptionsScreenInput::init()
     // Disable adding keyboard configurations
     bool in_game = StateManager::get()->getGameState() == GUIEngine::INGAME_MENU;
     getWidget<ButtonWidget>("add_device")->setActive(!in_game);
-    OptionsCommon::updatePauseTooltip(getWidget<ButtonWidget>("add_device"), in_game);
 
     bool multitouch_enabled = (UserConfigParams::m_multitouch_active == 1 &&
         irr_driver->getDevice()->supportsTouchDevice()) ||
@@ -230,8 +245,23 @@ void OptionsScreenInput::eventCallback(Widget* widget, const std::string& name, 
     {
         std::string selection = ((RibbonWidget*)widget)->getSelectionIDString(PLAYER_ID_GAME_MASTER);
 
-        if (selection != "tab_controls")
-            OptionsCommon::switchTab(selection);
+        Screen *screen = NULL;
+        if (selection == "tab_audio")
+            screen = OptionsScreenAudio::getInstance();
+        else if (selection == "tab_video")
+            screen = OptionsScreenVideo::getInstance();
+        else if (selection == "tab_players")
+            screen = TabbedUserScreen::getInstance();
+        //else if (selection == "tab_controls")
+        //    screen = OptionsScreenInput::getInstance();
+        else if (selection == "tab_ui")
+            screen = OptionsScreenUI::getInstance();
+        else if (selection == "tab_general")
+            screen = OptionsScreenGeneral::getInstance();
+        else if (selection == "tab_language")
+            screen = OptionsScreenLanguage::getInstance();
+        if(screen)
+            StateManager::get()->replaceTopMostScreen(screen);
     }
     else if (name == "add_device")
     {
@@ -365,5 +395,3 @@ void OptionsScreenInput::onUpdate(float dt)
     }
     //m_highlights[internal_name]
 }   // onUpdate
-
-#endif // ifndef SERVER_ONLY

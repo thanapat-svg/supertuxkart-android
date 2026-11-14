@@ -33,11 +33,6 @@
 #include "utils/log.hpp"
 #include "utils/string_utils.hpp"
 
-#include <ISceneManager.h>
-#include <ILightSceneNode.h>
-#include <ITexture.h>
-#include <IVideoDriver.h>
-
 int                   Referee::m_st_first_start_frame  = 1;
 int                   Referee::m_st_last_start_frame   = 1;
 int                   Referee::m_st_first_rescue_frame = 1;
@@ -171,8 +166,7 @@ Referee::Referee()
     m_scene_node->setFrameLoop(m_st_first_start_frame,
                                m_st_last_start_frame);
 #ifndef SERVER_ONLY
-    if ((CVS->isGLSL() && CVS->isDeferredEnabled()) ||
-        irr_driver->getVideoDriver()->getDriverType() == video::EDT_VULKAN)
+    if (CVS->isGLSL() && CVS->isDeferredEnabled())
     {
         m_light = irr_driver->addLight(core::vector3df(0.0f, 0.0f, 0.6f), 0.7f, 2.0f,
             0.7f /* r */, 0.0 /* g */, 0.0f /* b */, false /* sun */, m_scene_node);
@@ -271,39 +265,19 @@ void Referee::selectReadySetGo(int rsg)
         m.SpecularColor = video::SColor(255, 255, 255, 255);
     }
 
-    LightNode* lnode = dynamic_cast<LightNode*>(m_light);
-    if (lnode != NULL)
+    if (m_light != NULL)
     {
         if (rsg == 0)
         {
-            lnode->setColor(0.6f, 0.0f, 0.0f);
+            ((LightNode*)m_light)->setColor(0.6f, 0.0f, 0.0f);
         }
         else if (rsg == 1)
         {
-            lnode->setColor(0.7f, 0.23f, 0.0f);
+            ((LightNode*)m_light)->setColor(0.7f, 0.23f, 0.0f);
         }
         else if (rsg == 2)
         {
-            lnode->setColor(0.0f, 0.6f, 0.0f);
-        }
-        return;
-    }
-    scene::ILightSceneNode* irr_node = dynamic_cast<scene::ILightSceneNode*>(
-        m_light);
-    if (irr_node != NULL)
-    {
-        video::SLight& data = irr_node->getLightData();
-        if (rsg == 0)
-        {
-            data.DiffuseColor = video::SColorf(0.6f, 0.0f, 0.0f);
-        }
-        else if (rsg == 1)
-        {
-            data.DiffuseColor = video::SColorf(0.7f, 0.23f, 0.0f);
-        }
-        else if (rsg == 2)
-        {
-            data.DiffuseColor = video::SColorf(0.0f, 0.6f, 0.0f);
+            ((LightNode*)m_light)->setColor(0.0f, 0.6f, 0.0f);
         }
     }
 }   // selectReadySetGo
@@ -322,25 +296,3 @@ void Referee::setAnimationFrameWithCreatedTicks(int created_ticks)
     frame += (float)m_st_first_rescue_frame;
     m_scene_node->setCurrentFrame(frame);
 }   // setAnimationFrameWithCreatedTicks
-
-// ----------------------------------------------------------------------------
-/** Moves the referee to the specified position. */
-void Referee::setPosition(const Vec3 &xyz)
-{
-    m_scene_node->setPosition(xyz.toIrrVector());
-}   // setPosition
-
-// ----------------------------------------------------------------------------
-/** Sets the rotation of the scene node (in degrees).
- *  \param hpr Rotation in degrees. */
-void Referee::setRotation(const Vec3 &hpr)
-{
-    m_scene_node->setRotation(hpr.toIrrVector());
-}   // setRotation
-
-// ----------------------------------------------------------------------------
-/** Returns true if this referee is attached to the scene graph. */
-bool Referee::isAttached() const
-{
-    return m_scene_node->getParent() != NULL;
-}   // isAttached

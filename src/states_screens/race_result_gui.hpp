@@ -16,13 +16,11 @@
 //  along with this program; if not, write to the Free Software
 //  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
-#ifndef SERVER_ONLY // No GUI files in server builds
 #ifndef HEADER_RACE_RESULT_GUI_HPP
 #define HEADER_RACE_RESULT_GUI_HPP
 
 
 #include "guiengine/screen.hpp"
-#include "guiengine/widgets/list_widget.hpp"
 #include "states_screens/dialogs/message_dialog.hpp"
 #include "states_screens/race_gui_base.hpp"
 #include "states_screens/state_manager.hpp"
@@ -136,9 +134,6 @@ private:
         This includes a small waiting time at the end. */
     float                      m_time_overall_scroll;
 
-    /** The small waiting time for the above. */
-    float                      m_extra_scroll_time;
-
     /** Distance between each row of the race results */
     unsigned int               m_distance_between_rows;
 
@@ -191,9 +186,6 @@ private:
     /** For highscores */
     int m_highscore_rank;
 
-    /** Maximum number of points earned by a player in this game (used in animation). */
-    float m_most_points;
-
     unsigned int m_width_all_points;
 
     int m_max_tracks;
@@ -201,17 +193,10 @@ private:
     int m_end_track;
     int m_sshot_height;
 
-    bool m_has_set_goal_lists;
-    GUIEngine::ListWidget* m_blue_goal_list;
-    GUIEngine::ListWidget* m_red_goal_list;
-    irr::gui::STKModifiedSpriteBank *m_icon_bank;
-    int m_icon_default_kart;
-
     PtrVector<GUIEngine::Widget, HOLD>  m_gp_progress_widgets;
 
     static const int SSHOT_SEPARATION = 10;
 
-    void scheduleTip();
     void displayOneEntry(unsigned int x, unsigned int y,
                          unsigned int n, bool display_points);
     void determineTableLayout();
@@ -221,15 +206,8 @@ private:
     void addGPProgressWidget(GUIEngine::Widget* widget);
     void displayGPProgress();
     void displayPostRaceInfo();
-    int  displayHighscores(int x, int y, bool increase_density);
-    int  displayLapDifficulty(int x, int y, bool increase_density);
-    int  displayChallengeInfo(int x, int y, bool increase_density);
     void displayCTFResults();
-    void drawCTFScorers(KartTeam team, int x, int y, int height);
     void displaySoccerResults();
-    void setGoalList(KartTeam team);
-    void positionGoalList(KartTeam team, int starting_y);
-    void displayBenchmarkSummary();
     void displayScreenShots();
 
     int  getFontHeight () const;
@@ -292,8 +270,6 @@ public:
 
     virtual void onConfirm() OVERRIDE;
     void cleanupGPProgress();
-    virtual void onResize() OVERRIDE;
 };   // RaceResultGUI
 
 #endif
-#endif // ifndef SERVER_ONLY

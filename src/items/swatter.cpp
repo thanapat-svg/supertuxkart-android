@@ -43,8 +43,6 @@
 #include "network/network_string.hpp"
 #include "network/rewind_manager.hpp"
 
-#include <IAnimatedMeshSceneNode.h>
-
 #define SWAT_POS_OFFSET        core::vector3df(0.0, 0.2f, -0.4f)
 #define SWAT_ANGLE_MIN  45
 #define SWAT_ANGLE_MAX  135
@@ -231,7 +229,7 @@ void Swatter::updateGraphics(float dt)
  *  \param ticks Time step size.
  *  \return True if the attachment should be discarded.
  */
-bool Swatter::updateAndTestFinished()
+bool Swatter::updateAndTestFinished(int ticks)
 {
     const int ticks_start = World::getWorld()->getTicksSinceStart();
     if (World::getWorld()->getTicksSinceStart() > m_discard_ticks)
@@ -250,8 +248,8 @@ bool Swatter::updateAndTestFinished()
             {
                 // Avoid swatter near the start and the end lifetime of swatter
                 // to make sure all clients know the existence of swatter each other
-                if (m_swatter_duration - m_attachment->getTicksLeft() < stk_config->time2Ticks(0.5f) ||
-                    m_attachment->getTicksLeft() < stk_config->time2Ticks(0.75f) ) // ~0.167f and ~0.5f below
+                if (m_swatter_duration - m_attachment->getTicksLeft() < 60 ||
+                    m_attachment->getTicksLeft() < 90) // ~20 and ~60 below
                     return false;
 
                 chooseTarget();
@@ -278,7 +276,7 @@ bool Swatter::updateAndTestFinished()
                     // Start squashing
                     m_animation_phase = SWATTER_TO_TARGET;
                     m_swatter_animation_ticks =
-                        m_attachment->getTicksLeft() - stk_config->time2Ticks(0.166666672f);
+                        m_attachment->getTicksLeft() - 20;
                 }
             }
             break;
@@ -286,13 +284,13 @@ bool Swatter::updateAndTestFinished()
             {
                 // Did we just finish the first part of the movement?
                 if (m_attachment->getTicksLeft() < m_swatter_animation_ticks &&
-                    m_attachment->getTicksLeft() > stk_config->time2Ticks(0.5f))
+                    m_attachment->getTicksLeft() > 60)
                 {
                     // Squash the karts and items around and
                     // change the current phase
                     squashThingsAround();
                     m_animation_phase = SWATTER_FROM_TARGET;
-                    const int end_ticks = ticks_start + stk_config->time2Ticks(0.5f);
+                    const int end_ticks = ticks_start + 60;
                     if (RaceManager::get()->isBattleMode() ||
                         RaceManager::get()->isSoccerMode())
                     {
@@ -302,7 +300,7 @@ bool Swatter::updateAndTestFinished()
                         m_discard_ticks = end_ticks;
                     }
                     m_swatter_animation_ticks =
-                        m_attachment->getTicksLeft() - stk_config->time2Ticks(0.5f);
+                        m_attachment->getTicksLeft() - 60;
                 }
             }
             break;

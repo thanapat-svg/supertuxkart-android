@@ -21,6 +21,7 @@
 
 #include <vector>
 
+#include "utils/aligned_array.hpp"
 #include "utils/vec3.hpp"
 
 class XMLNode;
@@ -45,7 +46,7 @@ private:
     };   // BezierData
 
     /** Vector with all control points and handles. */
-    std::vector<BezierData> m_all_data;
+    AlignedArray<BezierData> m_all_data;
 public:
     BezierCurve(const XMLNode &node);
     Vec3 getXYZ(float t) const;

@@ -174,8 +174,6 @@ void RaceSetupScreen::init()
         break;
     }
 
-    w2->setItemCountHint(8);
-
     {
         RibbonWidget* w = getWidget<RibbonWidget>("difficulty");
         assert(w != NULL);
@@ -284,7 +282,7 @@ void RaceSetupScreen::assignDifficulty()
 {
     RibbonWidget* difficulty_widget = getWidget<RibbonWidget>("difficulty");
     assert(difficulty_widget != NULL);
-    const std::string& difficulty =
+    const std::string& difficulty = 
         difficulty_widget->getSelectionIDString(PLAYER_ID_GAME_MASTER);
     
     RaceManager::Difficulty diff = RaceManager::convertDifficulty(difficulty);

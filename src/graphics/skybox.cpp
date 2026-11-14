@@ -18,25 +18,12 @@
 #ifndef SERVER_ONLY
 
 #include "graphics/skybox.hpp"
-#include "config/stk_config.hpp"
 #include "graphics/central_settings.hpp"
 #include "graphics/irr_driver.hpp"
-#include "graphics/sp/sp_base.hpp"
 #include "graphics/texture_shader.hpp"
-
-#include <ge_main.hpp>
 
 #include <algorithm>
 #include <cassert>
-
-#include <IImage.h>
-
-#include <squish.h>
-extern "C"
-{
-    #include <mipmap/img.h>
-    #include <mipmap/imgresize.h>
-}
 
 using namespace irr;
 
@@ -68,6 +55,7 @@ public:
     }   // bindVertexArray
 };   // SkyboxShader
 
+#if !defined(USE_GLES2)
 class SpecularIBLGenerator : public TextureShader<SpecularIBLGenerator, 2,
                                                   core::matrix4, float >
 {
@@ -78,11 +66,22 @@ public:
                             GL_FRAGMENT_SHADER, "importance_sampling_specular.frag");
         assignUniforms("PermutationMatrix", "ViewportSize");
         assignSamplerNames(0, "tex", ST_TRILINEAR_CUBEMAP,
-                           1, "samples", ST_NEAREST_CLAMPED_FILTERED);
+                           1, "samples", ST_TEXTURE_BUFFER);
     }
 };   // SpecularIBLGenerator
+#endif
 
 namespace {
+    // ----------------------------------------------------------------------------
+    void swapPixels(char *old_img, char *new_img, unsigned stride, unsigned old_i,
+                    unsigned old_j, unsigned new_i, unsigned new_j)
+    {
+        new_img[4 * (stride * new_i + new_j)] = old_img[4 * (stride * old_i + old_j)];
+        new_img[4 * (stride * new_i + new_j) + 1] = old_img[4 * (stride * old_i + old_j) + 1];
+        new_img[4 * (stride * new_i + new_j) + 2] = old_img[4 * (stride * old_i + old_j) + 2];
+        new_img[4 * (stride * new_i + new_j) + 3] = old_img[4 * (stride * old_i + old_j) + 3];
+    }   // swapPixels
+
     // ----------------------------------------------------------------------------
     // From http://http.developer.nvidia.com/GPUGems3/gpugems3_ch20.html
     /** Returns the index-th pair from Hammersley set of pseudo random set.
@@ -136,9 +135,6 @@ namespace {
 
 }  //namespace
 
-// ============================================================================
-extern "C" void squishCompressImage(uint8_t* rgba, int width, int height,
-                                    int pitch, void* blocks, unsigned flags);
 // ----------------------------------------------------------------------------
 /** Generate an opengl cubemap texture from 6 2d textures */
 void Skybox::generateCubeMapFromTextures()
@@ -155,132 +151,61 @@ void Skybox::generateCubeMapFromTextures()
     }
 
     const unsigned texture_permutation[] = { 2, 3, 0, 1, 5, 4 };
+    char *rgba[6];
+    for (unsigned i = 0; i < 6; i++)
+        rgba[i] = new char[size * size * 4];
     for (unsigned i = 0; i < 6; i++)
     {
-        char *rgba = new char[size * size * 4];
-
         unsigned idx = texture_permutation[i];
         video::IImage* img = m_skybox_textures[idx];
-
-        bool is_gles = false;
-#ifdef USE_GLES2
-        is_gles = true;
-#endif
-        if (CVS->isTextureCompressionEnabled() || is_gles)
+#if defined(USE_GLES2)
+        uint8_t* data = (uint8_t*)img->lock();
+        for (unsigned int j = 0; j <
+            img->getDimension().Width * img->getDimension().Height; j++)
         {
-            uint8_t* data = (uint8_t*)img->lock();
-            for (unsigned int j = 0; j <
-                img->getDimension().Width * img->getDimension().Height; j++)
-            {
-                uint8_t tmp_val = data[j * 4];
-                data[j * 4] = data[j * 4 + 2];
-                data[j * 4 + 2] = tmp_val;
-            }
+            uint8_t tmp_val = data[j * 4];
+            data[j * 4] = data[j * 4 + 2];
+            data[j * 4 + 2] = tmp_val;
         }
+#endif
 
-        img->copyToScaling(rgba, size, size);
-        img->drop();
+        img->copyToScaling(rgba[i], size, size);
 
         if (i == 2 || i == 3)
         {
-            // The size % 2 is here to handle the case of an odd size. We only
-            // need to apply it to one of {x, y}. With integer division:
-            // (odd / 2) * (odd / 2 + 1) * 4  = (odd * odd) - 1 pixel assignations
-            // The central pixel which would swap with itself is left untouched.
-            for (unsigned x = 0; x < (size + (size % 2))/2; x++)
+            char *tmp = new char[size * size * 4];
+            memcpy(tmp, rgba[i], size * size * 4);
+            for (unsigned x = 0; x < size; x++)
             {
-                unsigned inv_x = size - x - 1;
-                for (unsigned y = 0; y < size/2; y++)
+                for (unsigned y = 0; y < size; y++)
                 {
-                    unsigned inv_y = size - y - 1;
-                    for (unsigned z = 0; z < 4; z++)
-                    {
-                        char tmp = rgba[4 * (size * x + y) + z];
-                        rgba[4 * (size * x + y) + z] =
-                            rgba[4 * (size * y + inv_x) + z];
-                        rgba[4 * (size * y + inv_x) + z] =
-                            rgba[4 * (size * inv_x + inv_y) + z];
-                        rgba[4 * (size * inv_x + inv_y) + z] =
-                            rgba[4 * (size * inv_y + x) + z];
-                        rgba[4 * (size * inv_y + x) + z] = tmp;
-                    }
+                    swapPixels(tmp, rgba[i], size, x, y, (size - y - 1), x);
                 }
             }
+            delete[] tmp;
         }
+        img->drop();
 
-        bool needs_srgb_format = CVS->isDeferredEnabled();
         glBindTexture(GL_TEXTURE_CUBE_MAP, m_cube_map);
 
+        bool needs_srgb_format = CVS->isDeferredEnabled();
+
+        GLint format = GL_RGBA;
+        GLint internal_format = needs_srgb_format ? GL_SRGB8_ALPHA8 : GL_RGBA8;
+#if !defined(USE_GLES2)
         if (CVS->isTextureCompressionEnabled())
-        {
-            const unsigned tc_flag = squish::kDxt5 | stk_config->m_tc_quality;
-
-            unsigned tex_size = GE::get4x4CompressedTextureSize(size, size);
-            uint8_t* compressed = new uint8_t[tex_size];
-            squishCompressImage((uint8_t*)rgba, size, size, size * 4,
-                compressed, tc_flag);
-            GLint internal_format = needs_srgb_format ?
-                GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT :
-                GL_COMPRESSED_RGBA_S3TC_DXT5_EXT;
-            glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0,
-                internal_format, size, size, 0, tex_size, compressed);
-            delete[] compressed;
-
-            imMipmapCascade cascade;
-            imReduceOptions options;
-            imReduceSetOptions(&options, IM_REDUCE_FILTER_LINEAR/*filter*/,
-                2/*hopcount*/, 2.0f/*alpha*/, 1.0f/*amplifynormal*/,
-                0.0f/*normalsustainfactor*/);
-#ifdef DEBUG
-            int ret = imBuildMipmapCascade(&cascade, rgba, size, size,
-                1/*layercount*/, 4, size * 4, &options, 0);
-            assert(ret == 1);
-            delete[] rgba;
-#else
-            imBuildMipmapCascade(&cascade, rgba, size, size,
-                1/*layercount*/, 4, size * 4, &options, 0);
-            delete[] rgba;
+            internal_format = needs_srgb_format ? GL_COMPRESSED_SRGB_ALPHA
+                                                : GL_COMPRESSED_RGBA;
+        format = GL_BGRA;
 #endif
-            unsigned mip = 0;
-            unsigned cur_width = size;
-            while (true)
-            {
-                cur_width = cur_width < 2 ? 1 : cur_width >> 1;
 
-                unsigned tex_size = GE::get4x4CompressedTextureSize(cur_width,
-                    cur_width);
-                uint8_t* compressed = new uint8_t[tex_size];
-                squishCompressImage((uint8_t*)cascade.mipmap[mip + 1],
-                    cur_width, cur_width, cur_width * 4, compressed, tc_flag);
-                GLint internal_format = needs_srgb_format ?
-                    GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT :
-                    GL_COMPRESSED_RGBA_S3TC_DXT5_EXT;
-                glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,
-                    mip + 1, internal_format, cur_width, cur_width, 0, tex_size,
-                    compressed);
-                delete[] compressed;
-
-                if (cur_width == 1)
-                    break;
-                mip += 1;
-            }
-            imFreeMipmapCascade(&cascade);
-        }
-        else
-        {
-            GLint format = GL_BGRA;
-            if (is_gles)
-                format = GL_RGBA;
-            GLint internal_format = needs_srgb_format ? GL_SRGB8_ALPHA8 : GL_RGBA8;
-            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0,
-                internal_format, size, size, 0, format,
-                GL_UNSIGNED_BYTE, (GLvoid*)rgba);
-            delete[] rgba;
-        }
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0,
+                     internal_format, size, size, 0, format,
+                     GL_UNSIGNED_BYTE, (GLvoid*)rgba[i]);
     }
-
-    if (!CVS->isTextureCompressionEnabled())
-        glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
+    glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
+    for (unsigned i = 0; i < 6; i++)
+        delete[] rgba[i];
 }   // generateCubeMapFromTextures
 
 
@@ -302,8 +227,10 @@ void Skybox::generateSpecularCubemap()
     }
     glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
 
-    if (!CVS->isDeferredEnabled())
+    if (!CVS->isDeferredEnabled() || !CVS->isARBTextureBufferObjectUsable())
         return;
+
+#if !defined(USE_GLES2)
 
     GLuint fbo;
     glGenFramebuffers(1, &fbo);
@@ -346,15 +273,15 @@ void Skybox::generateSpecularCubemap()
         }
 
         glBindVertexArray(0);
-        GLuint sample_texture;
+        GLuint sample_texture, sample_buffer;
+        glGenBuffers(1, &sample_buffer);
+        glBindBuffer(GL_TEXTURE_BUFFER, sample_buffer);
+        glBufferData(GL_TEXTURE_BUFFER, 2048 * sizeof(float), tmp,
+                     GL_STATIC_DRAW);
         glGenTextures(1, &sample_texture);
-        glBindTexture(GL_TEXTURE_2D, sample_texture);
-
-        // Upload texture data as 1024x1 RG32F texture
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RG32F, 1024, 1, 0, GL_RG, GL_FLOAT, tmp);
-        glBindTexture(GL_TEXTURE_2D, 0);
-
-        delete[] tmp;
+        glBindTexture(GL_TEXTURE_BUFFER, sample_texture);
+        glTexBuffer(GL_TEXTURE_BUFFER, GL_RG32F, sample_buffer);
+        glBindTexture(GL_TEXTURE_BUFFER, 0);
         glBindVertexArray(SharedGPUObjects::getFullScreenQuadVAO());
 
         for (unsigned face = 0; face < 6; face++)
@@ -372,11 +299,17 @@ void Skybox::generateSpecularCubemap()
 
             glDrawArrays(GL_TRIANGLES, 0, 3);
         }
+        glBindBuffer(GL_TEXTURE_BUFFER, 0);
+        glBindTexture(GL_TEXTURE_BUFFER, 0);
+
+        delete[] tmp;
         glDeleteTextures(1, &sample_texture);
+        glDeleteBuffers(1, &sample_buffer);
     }
     glBindFramebuffer(GL_FRAMEBUFFER, irr_driver->getDefaultFramebuffer());
     glDeleteFramebuffers(1, &fbo);
     glActiveTexture(GL_TEXTURE0);
+#endif
 }   // generateSpecularCubemap
 
 

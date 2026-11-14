@@ -65,7 +65,7 @@ public:
     // ------------------------------------------------------------------------
     int dumpTextureUsage();
     // ------------------------------------------------------------------------
-    void reloadAllTextures(bool mesh_texture_only = false);
+    void reloadAllTextures();
     // ------------------------------------------------------------------------
     /** Returns the currently defined texture error message, which is used
      *  by event_handler.cpp to print additional info about irrlicht

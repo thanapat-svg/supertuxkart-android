@@ -15,8 +15,6 @@
 //  along with this program; if not, write to the Free Software
 //  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
-#ifndef SERVER_ONLY // No GUI files in server builds
-
 #include "states_screens/dialogs/add_device_dialog.hpp"
 
 #include "guiengine/engine.hpp"
@@ -46,79 +44,6 @@ AddDeviceDialog::AddDeviceDialog() : ModalDialog(0.90f, 0.80f)
 {
     doInit();
 
-    core::stringw msg =
-        _("New gamepads and joysticks will automatically appear in the list "
-          "when you connect them to this device.\n\nTo add a "
-          "keyboard config, you can use the button below, HOWEVER please "
-          "note that most keyboards only support a limited amount of "
-          "simultaneous keypresses and are thus inappropriate for multiplayer "
-          "gameplay. (You can, however, connect multiple keyboards to this "
-          "device. Remember that everyone still needs different keybindings "
-          "in this case.)");
-    m_text =
-        GUIEngine::getGUIEnv()->addStaticText(msg,
-                                              core::rect<s32>(0, 0, 1, 1),
-                                              /*border*/false ,
-                                              /*word wrap*/true,
-                                              m_irrlicht_window);
-    m_text->setTabStop(false);
-    m_text->setText(msg);
-
-#ifdef ENABLE_WIIUSE
-    {
-        ButtonWidget* widget = new ButtonWidget();
-        widget->m_properties[PROP_ID] = "addwiimote";
-
-        //I18N: In the 'add new input device' dialog
-        widget->setText( _("Add Wiimote") );
-
-        widget->m_x = 0;
-        widget->m_y = 0;
-        widget->m_w = 1;
-        widget->m_h = 1;
-        widget->setParent(m_irrlicht_window);
-        m_widgets.push_back(widget);
-        widget->add();
-    }
-#endif  // ENABLE_WIIUSE
-
-    {
-        ButtonWidget* widget = new ButtonWidget();
-        widget->m_properties[PROP_ID] = "addkeyboard";
-
-        //I18N: In the 'add new input device' dialog
-        widget->setText( _("Add Keyboard Configuration") );
-
-        widget->m_x = 0;
-        widget->m_y = 0;
-        widget->m_w = 1;
-        widget->m_h = 1;
-        widget->setParent(m_irrlicht_window);
-        m_widgets.push_back(widget);
-        widget->add();
-    }
-    {
-        ButtonWidget* widget = new ButtonWidget();
-        widget->m_properties[PROP_ID] = "cancel";
-        widget->setText( _("Cancel") );
-
-        widget->m_x = 0;
-        widget->m_y = 0;
-        widget->m_w = 1;
-        widget->m_h = 1;
-        widget->setParent(m_irrlicht_window);
-        m_widgets.push_back(widget);
-        widget->add();
-
-        widget->setFocusForPlayer( PLAYER_ID_GAME_MASTER );
-
-    }
-    configDialog();
-}   // AddDeviceDialog
-
-// ----------------------------------------------------------------------------
-void AddDeviceDialog::configDialog()
-{
     ScalableFont* font = GUIEngine::getFont();
     const int textHeight = GUIEngine::getFontHeight();
     const int buttonHeight = textHeight + 10;
@@ -134,12 +59,32 @@ void AddDeviceDialog::configDialog()
     int cur_y = y_bottom;
 
     core::rect<s32> text_area( 15, 15, m_area.getWidth()-15, y_bottom-15 );
-    m_text->setRelativePosition(text_area);
 
-    auto itr = m_widgets.begin();
+    core::stringw msg =
+        _("New gamepads and joysticks will automatically appear in the list "
+          "when you connect them to this device.\n\nTo add a "
+          "keyboard config, you can use the button below, HOWEVER please "
+          "note that most keyboards only support a limited amount of "
+          "simultaneous keypresses and are thus inappropriate for multiplayer "
+          "gameplay. (You can, however, connect multiple keyboards to this "
+          "device. Remember that everyone still needs different keybindings "
+          "in this case.)");
+    IGUIStaticText* b =
+        GUIEngine::getGUIEnv()->addStaticText(msg,
+                                              text_area,
+                                              /*border*/false ,
+                                              /*word wrap*/true,
+                                              m_irrlicht_window);
+    b->setTabStop(false);
+    b->setText(msg);
+
 #ifdef ENABLE_WIIUSE
     {
-        Widget* widget = *itr;
+        ButtonWidget* widget = new ButtonWidget();
+        widget->m_properties[PROP_ID] = "addwiimote";
+
+        //I18N: In the 'add new input device' dialog
+        widget->setText( _("Add Wiimote") );
 
         const int textWidth =
             font->getDimension( widget->getText().c_str() ).Width + 40;
@@ -148,14 +93,19 @@ void AddDeviceDialog::configDialog()
         widget->m_y = cur_y;
         widget->m_w = textWidth;
         widget->m_h = buttonHeight;
-        widget->resize();
-        itr++;
+        widget->setParent(m_irrlicht_window);
+        m_widgets.push_back(widget);
+        widget->add();
         cur_y += y_stride;
     }
 #endif  // ENABLE_WIIUSE
 
     {
-        Widget* widget = *itr;
+        ButtonWidget* widget = new ButtonWidget();
+        widget->m_properties[PROP_ID] = "addkeyboard";
+
+        //I18N: In the 'add new input device' dialog
+        widget->setText( _("Add Keyboard Configuration") );
 
         const int textWidth =
             font->getDimension( widget->getText().c_str() ).Width + 40;
@@ -164,12 +114,15 @@ void AddDeviceDialog::configDialog()
         widget->m_y = cur_y;
         widget->m_w = textWidth;
         widget->m_h = buttonHeight;
-        widget->resize();
-        itr++;
+        widget->setParent(m_irrlicht_window);
+        m_widgets.push_back(widget);
+        widget->add();
         cur_y += y_stride;
     }
     {
-        Widget* widget = *itr;
+        ButtonWidget* widget = new ButtonWidget();
+        widget->m_properties[PROP_ID] = "cancel";
+        widget->setText( _("Cancel") );
 
         const int textWidth =
             font->getDimension( widget->getText().c_str() ).Width + 40;
@@ -178,10 +131,24 @@ void AddDeviceDialog::configDialog()
         widget->m_y = cur_y;
         widget->m_w = textWidth;
         widget->m_h = buttonHeight;
-        widget->resize();
+        widget->setParent(m_irrlicht_window);
+        m_widgets.push_back(widget);
+        widget->add();
         cur_y += y_stride;
+
+        widget->setFocusForPlayer( PLAYER_ID_GAME_MASTER );
+
     }
-}   // configDialog
+
+}   // AddDeviceDialog
+
+// ----------------------------------------------------------------------------
+
+void AddDeviceDialog::onEnterPressedInternal()
+{
+}   // onEnterPressedInternal
+
+// ----------------------------------------------------------------------------
 
 // ----------------------------------------------------------------------------
 GUIEngine::EventPropagation AddDeviceDialog::processEvent
@@ -217,5 +184,3 @@ GUIEngine::EventPropagation AddDeviceDialog::processEvent
 
     return GUIEngine::EVENT_LET;
 }   // processEvent
-
-#endif // ifndef SERVER_ONLY

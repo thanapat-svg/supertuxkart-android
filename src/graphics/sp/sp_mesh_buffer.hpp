@@ -124,11 +124,8 @@ public:
         }
         else
         {
-            unsigned idx_count = std::get<1>(m_stk_material[material_id]);
-            if (idx_count == 0)
-                return;
             glDrawElementsInstanced(GL_TRIANGLES,
-                idx_count,
+                std::get<1>(m_stk_material[material_id]),
                 GL_UNSIGNED_SHORT,
                 (void*)(std::get<0>(m_stk_material[material_id]) << 1),
                 (unsigned)m_ins_dat[dct].size());
@@ -439,8 +436,6 @@ public:
     virtual u32 getChangedID_Vertex() const { return 0; }
     // ------------------------------------------------------------------------
     virtual u32 getChangedID_Index() const { return 0; }
-    // ------------------------------------------------------------------------
-    void disableForMaterial(u32 idx)  { std::get<1>(m_stk_material[idx]) = 0; }
 
 };
 

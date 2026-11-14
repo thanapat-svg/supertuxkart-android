@@ -19,8 +19,6 @@
 #ifndef HEADER_TRACK_MANAGER_HPP
 #define HEADER_TRACK_MANAGER_HPP
 
-#include "config/favorite_status.hpp"
-
 #include <string>
 #include <vector>
 #include <map>
@@ -34,13 +32,6 @@ class Track;
 class TrackManager
 {
 private:
-    enum TrackGroupType
-    {
-        RACING_TRACK = 0,
-        BATTLE_ARENA,
-        SOCCER_ARENA
-    };
-
     /** All directories in which tracks are searched. */
     static std::vector<std::string>          m_track_search_path;
 
@@ -53,13 +44,13 @@ private:
     Tracks                                   m_tracks;
 
     typedef std::map<std::string, std::vector<int> > Group2Indices;
-    /** List of all track indexes for each racing track group. */
+    /** List of all racing track groups. */
     Group2Indices                            m_track_groups;
 
-    /** List of all arena indexes for each arena group. */
+    /** List of all arena groups. */
     Group2Indices                            m_arena_groups;
 
-    /** List of all soccer arena indexes for each soccer arena group. */
+    /** List of all soccer arena groups. */
     Group2Indices                            m_soccer_arena_groups;
 
     /** List of the names of all groups containing tracks */
@@ -71,36 +62,18 @@ private:
     /** List of the names of all groups containing soccer arenas */
     std::vector<std::string>                 m_soccer_arena_group_names;
 
-    /** Same as above but without user-defined groups. */
-    // TODO: check if we really need this extra layer of complication
-    Group2Indices                            m_track_groups_no_custom;
-    Group2Indices                            m_arena_groups_no_custom;
-    Group2Indices                            m_soccer_arena_groups_no_custom;
-
     /** Flag if this track is available or not. Tracks are set unavailable
      *  if they are not available on all clients (applies only to network mode)
      */
     std::vector<bool>                        m_track_avail;
 
-    FavoriteStatus                     *m_current_favorite_status;
-
-    void updateAllGroups(const Track* track);
-    void updateGroups(TrackGroupType type, const Track* track);
-    void removeTrackFromGroups(TrackGroupType type, const Track* track);
+    void          updateGroups(const Track* track);
 
 public:
                 TrackManager();
                ~TrackManager();
     static void removeTrackSearchDirs();
     static void addTrackSearchDir(const std::string &dir);
-
-    /** Adds a track to the special group of favorite tracks.
-    * We need to treat it specially, because the list of tracks in this group
-    * depends on the player-profile, not on the track data. */
-    void setFavoriteTrackStatus(FavoriteStatus *status);
-
-    void clearFavoriteTrackStatus();
-
     /** Returns a list of all track identifiers. */
     std::vector<std::string> getAllTrackIdentifiers();
 
@@ -165,8 +138,7 @@ public:
     }   // getArenasInGroup
     // ------------------------------------------------------------------------
     void onDemandLoadTrackScreenshots();
-    // ------------------------------------------------------------------------
-    void updateScreenshotCache();
+
 };   // TrackManager
 
 extern TrackManager* track_manager;

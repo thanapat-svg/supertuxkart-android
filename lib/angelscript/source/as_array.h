@@ -1,6 +1,6 @@
 /*
    AngelCode Scripting Library
-   Copyright (c) 2003-2024 Andreas Jonsson
+   Copyright (c) 2003-2015 Andreas Jonsson
 
    This software is provided 'as-is', without any express or implied
    warranty. In no event will the authors be held liable for any
@@ -47,29 +47,28 @@ template <class T> class asCArray
 public:
 	asCArray();
 	asCArray(const asCArray<T> &);
-	explicit asCArray(asUINT reserve);
+	asCArray(asUINT reserve);
 	~asCArray();
 
 	void   Allocate(asUINT numElements, bool keepData);
 	void   AllocateNoConstruct(asUINT numElements, bool keepData);
-	inline asUINT GetCapacity() const;
+	asUINT GetCapacity() const;
 
 	void PushLast(const T &element);
-	inline T    PopLast();
+	T    PopLast();
 
 	bool   SetLength(asUINT numElements);
 	bool   SetLengthNoConstruct(asUINT numElements);
-	inline void   SetLengthNoAllocate(asUINT numElements);
-	inline asUINT GetLength() const;
+	asUINT GetLength() const;
 
 	void         Copy(const T*, asUINT count);
 	asCArray<T> &operator =(const asCArray<T> &);
 	void         SwapWith(asCArray<T> &other);
 
-	inline const T &operator [](asUINT index) const;
-	inline T       &operator [](asUINT index);
-	inline T       *AddressOf();
-	inline const T *AddressOf() const;
+	const T &operator [](asUINT index) const;
+	T       &operator [](asUINT index);
+	T       *AddressOf();
+	const T *AddressOf() const;
 
 	bool Concatenate(const asCArray<T> &);
 	void Concatenate(T*, unsigned int count);
@@ -83,33 +82,29 @@ public:
 	bool operator==(const asCArray<T> &) const;
 	bool operator!=(const asCArray<T> &) const;
 
-public:
-	// These are public to allow external code (e.g. JIT compiler) to do asOFFSET to 
-	// access the members directly without having to modify the code to add friend
+protected:
 	T      *array;
 	asUINT  length;                  // 32bits is enough for all uses of this array
 	asUINT  maxLength;
-
-protected:
 	char    buf[2*4*AS_PTR_SIZE];    // Avoid dynamically allocated memory for tiny arrays
 };
 
 // Implementation
 
 template <class T>
-inline T *asCArray<T>::AddressOf()
+T *asCArray<T>::AddressOf()
 {
 	return array;
 }
 
 template <class T>
-inline const T *asCArray<T>::AddressOf() const
+const T *asCArray<T>::AddressOf() const
 {
 	return array;
 }
 
 template <class T>
-asCArray<T>::asCArray(void) : buf()
+asCArray<T>::asCArray(void)
 {
 	array     = 0;
 	length    = 0;
@@ -117,7 +112,7 @@ asCArray<T>::asCArray(void) : buf()
 }
 
 template <class T>
-asCArray<T>::asCArray(const asCArray<T> &copy) : buf()
+asCArray<T>::asCArray(const asCArray<T> &copy)
 {
 	array     = 0;
 	length    = 0;
@@ -127,7 +122,7 @@ asCArray<T>::asCArray(const asCArray<T> &copy) : buf()
 }
 
 template <class T>
-asCArray<T>::asCArray(asUINT reserve) : buf()
+asCArray<T>::asCArray(asUINT reserve)
 {
 	array     = 0;
 	length    = 0;
@@ -144,13 +139,13 @@ asCArray<T>::~asCArray(void)
 }
 
 template <class T>
-inline asUINT asCArray<T>::GetLength() const
+asUINT asCArray<T>::GetLength() const
 {
 	return length;
 }
 
 template <class T>
-inline const T &asCArray<T>::operator [](asUINT index) const
+const T &asCArray<T>::operator [](asUINT index) const
 {
 	asASSERT(index < length);
 
@@ -158,7 +153,7 @@ inline const T &asCArray<T>::operator [](asUINT index) const
 }
 
 template <class T>
-inline T &asCArray<T>::operator [](asUINT index)
+T &asCArray<T>::operator [](asUINT index)
 {
 	asASSERT(index < length);
 
@@ -186,7 +181,7 @@ void asCArray<T>::PushLast(const T &element)
 }
 
 template <class T>
-inline T asCArray<T>::PopLast()
+T asCArray<T>::PopLast()
 {
 	asASSERT(length > 0);
 
@@ -338,16 +333,9 @@ void asCArray<T>::AllocateNoConstruct(asUINT numElements, bool keepData)
 }
 
 template <class T>
-inline asUINT asCArray<T>::GetCapacity() const
+asUINT asCArray<T>::GetCapacity() const
 {
 	return maxLength;
-}
-
-template <class T>
-inline void asCArray<T>::SetLengthNoAllocate(asUINT numElements)
-{
-	asASSERT(numElements <= maxLength);
-	length = numElements;
 }
 
 template <class T>

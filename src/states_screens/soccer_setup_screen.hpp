@@ -45,7 +45,7 @@ class SoccerSetupScreen : public GUIEngine::Screen,
                          team(KART_TEAM_NONE) {}
     };
 
-    std::vector<KartViewInfo>  m_kart_view_info;
+    AlignedArray<KartViewInfo>  m_kart_view_info;
 
     bool m_schedule_continue;
 
@@ -77,12 +77,6 @@ public:
                                                        int playerId) OVERRIDE;
 
     virtual bool onEscapePressed() OVERRIDE;
-
-    virtual void onResize() OVERRIDE
-    {
-        Screen::onResize();
-        updateKartViewsLayout();
-    }
 
 private:
     bool areAllKartsConfirmed() const;

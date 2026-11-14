@@ -32,8 +32,8 @@
 #include <stdio.h>
 #include <string>
 
-SFXOpenAL::SFXOpenAL(SFXBuffer* buffer, bool positional, float volume,
-                     bool owns_buffer)
+SFXOpenAL::SFXOpenAL(SFXBuffer* buffer, bool positional, float volume, 
+                     bool owns_buffer) 
          : SFXBase()
 {
     m_sound_buffer = buffer;
@@ -75,7 +75,7 @@ SFXOpenAL::~SFXOpenAL()
 }   // ~SFXOpenAL
 
 //-----------------------------------------------------------------------------
-/** Initialises the sfx.
+/** Initialises the sfx. 
  */
 bool SFXOpenAL::init()
 {
@@ -227,7 +227,7 @@ void SFXOpenAL::reallySetMasterVolumeNow(float volume)
     
     if(m_status==SFX_UNKNOWN || m_status == SFX_NOT_INITIALISED) return;
 
-    alSourcef(m_sound_source, AL_GAIN,
+    alSourcef(m_sound_source, AL_GAIN, 
                (m_gain < 0.0f ? m_default_gain : m_gain) * m_master_gain);
     SFXManager::checkError("setting volume");
 }   // reallySetMasterVolumeNow
@@ -262,11 +262,10 @@ void SFXOpenAL::reallySetLoop(bool status)
 
 //-----------------------------------------------------------------------------
 /** Queues a stop for this effect to the sound manager.
- * Stopping MUST be allowed when SFX are disabled
  */
 void SFXOpenAL::stop()
 {
-    if (m_status == SFX_UNKNOWN) return;
+    if (m_status == SFX_UNKNOWN || !SFXManager::get()->sfxAllowed()) return;
     SFXManager::get()->queue(SFXManager::SFX_STOP, this);
 }   // stop
 
@@ -296,13 +295,12 @@ void SFXOpenAL::pause()
 //-----------------------------------------------------------------------------
 /** Pauses a SFX that's currently played. Nothing happens it the effect is
  *  currently not being played.
- *  Pausing MUST be allowed when SFX are disabled
  */
 void SFXOpenAL::reallyPauseNow()
 {
     // Need to be tested again here, since this function can be called
     // from pauseAll, and we have to make sure to only pause playing sfx.
-    if (m_status != SFX_PLAYING) return;
+    if (m_status != SFX_PLAYING || !SFXManager::get()->sfxAllowed()) return;
     m_status = SFX_PAUSED;
     alSourcePause(m_sound_source);
     SFXManager::checkError("pausing");
@@ -475,7 +473,7 @@ void SFXOpenAL::reallySetPosition(const Vec3 &position)
     }
     else
     {
-        alSourcef(m_sound_source, AL_GAIN,
+        alSourcef(m_sound_source, AL_GAIN, 
                   (m_gain < 0.0f ? m_default_gain : m_gain) * m_master_gain);
     }
 
@@ -515,7 +513,7 @@ void SFXOpenAL::deleteSFX()
 
 //-----------------------------------------------------------------------------
 
-void SFXOpenAL::onSoundEnabledBack(bool resume_later)
+void SFXOpenAL::onSoundEnabledBack()
 {
     if (m_loop)
     {
@@ -527,8 +525,6 @@ void SFXOpenAL::onSoundEnabledBack(bool resume_later)
             pause();
             alSourcef(m_sound_source, AL_GAIN,
                      (m_gain < 0.0f ? m_default_gain : m_gain) * m_master_gain);
-            if (!resume_later)
-                play();
         }
     }
 }   // onSoundEnabledBack

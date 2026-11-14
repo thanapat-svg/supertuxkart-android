@@ -27,10 +27,17 @@
  * management, etc...)
  */
 
+#include <IVideoDriver.h>
+#include <vector2d.h>
+#include <dimension2d.h>
+#include <SColor.h>
+#include "IrrlichtDevice.h"
+#include "ISkinnedMesh.h"
 #include "graphics/abstract_renderer.hpp"
 #include "graphics/gl_headers.hpp"
 #include "graphics/wind.hpp"
 #include "io/file_manager.hpp"
+#include "utils/aligned_array.hpp"
 #include "utils/no_copy.hpp"
 #include "utils/ptr_vector.hpp"
 #include "utils/vec3.hpp"
@@ -38,13 +45,6 @@
 #include <string>
 #include <vector>
 
-#include <irrArray.h>
-#include <dimension2d.h>
-#include <position2d.h>
-#include <matrix4.h>
-#include <vector2d.h>
-#include <IEventReceiver.h>
-#include <SColor.h>
 
 namespace SP
 {
@@ -58,9 +58,6 @@ namespace irr
         class IMeshSceneNode; class IParticleSystemSceneNode; class ICameraSceneNode; class ILightSceneNode;
         class CLensFlareSceneNode; }
     namespace gui   { class IGUIEnvironment; class IGUIFont; }
-    namespace video { struct IRenderTarget; class ITexture; class IVideoDriver;
-                      class SMaterial; }
-    class IrrlichtDevice;
 }
 using namespace irr;
 
@@ -82,7 +79,7 @@ struct SHCoefficients;
   * \ingroup graphics
   */
 class IrrDriver : public IEventReceiver, public NoCopy
-{
+{    
 private:
     /** The irrlicht device. */
     IrrlichtDevice             *m_device;
@@ -118,7 +115,7 @@ private:
      *  Same indicates a change of the resolution (back to the original
      *  one), but no confirmation dialog. */
     enum {RES_CHANGE_NONE, RES_CHANGE_YES, RES_CHANGE_CANCEL,
-          RES_CHANGE_SAME, RES_CHANGE_YES_WARN, RES_CHANGE_SAME_FULL} m_resolution_changing;
+          RES_CHANGE_SAME, RES_CHANGE_YES_WARN} m_resolution_changing;
 
 
 public:
@@ -154,8 +151,6 @@ private:
 
     /** Store if the scene is complex (based on polycount, etc) */
     int                  m_scene_complexity;
-    /** Used for auto-LoD adjustment in low-complexity scenes */
-    float                m_lod_multiplier;
 
     /** Internal method that applies the resolution in user settings. */
     void                 applyResolutionSettings(bool recreate_device);
@@ -197,12 +192,9 @@ private:
     std::vector<irr::scene::IAnimatedMeshSceneNode*> m_debug_meshes;
 #endif
     // ------------------------------------------------------------------------
-    void updateDisplace(float dt);
-    // ------------------------------------------------------------------------
     void resizeWindow();
 public:
-    void doScreenShot();
-    void commonInit();
+    void doScreenShot();    
 public:
          IrrDriver();
         ~IrrDriver();
@@ -216,7 +208,7 @@ public:
     void increaseObjectCount();
     core::array<video::IRenderTarget> &getMainSetup();
     void updateConfigIfRelevant();
-    core::recti getSplitscreenWindow(int window_num);
+    core::recti getSplitscreenWindow(int WindowNum);
     void setAllMaterialFlags(scene::IMesh *mesh) const;
     scene::IAnimatedMesh *getAnimatedMesh(const std::string &name);
     scene::IMesh         *getMesh(const std::string &name);
@@ -307,7 +299,8 @@ public:
     const std::vector<VideoMode>& getVideoModes() const { return m_modes; }
     // ------------------------------------------------------------------------
     /** Returns the frame size. */
-    const core::dimension2d<u32>& getFrameSize() const;
+    const core::dimension2d<u32>& getFrameSize() const
+                       { return m_video_driver->getCurrentRenderTargetSize(); }
     // ------------------------------------------------------------------------
     /** Returns the irrlicht device. */
     IrrlichtDevice       *getDevice()       const { return m_device;        }
@@ -323,7 +316,7 @@ public:
     // ------------------------------------------------------------------------
     /** Returns the current real time, which might not be 0 at start of the
      *  application. Value in msec. */
-    unsigned int getRealTime();
+    unsigned int getRealTime() {return m_device->getTimer()->getRealTime(); }
     // ------------------------------------------------------------------------
     /** Use motion blur for a short time */
     void giveBoost(unsigned int cam_index) { m_renderer->giveBoost(cam_index);}
@@ -372,17 +365,11 @@ public:
     bool getBoundingBoxesViz()    { return m_boundingboxesviz;      }
     // ------------------------------------------------------------------------
     int getSceneComplexity() { return m_scene_complexity;           }
-    // ------------------------------------------------------------------------
     void resetSceneComplexity() { m_scene_complexity = 0;           }
-    // ------------------------------------------------------------------------
     void addSceneComplexity(int complexity)
     {
         if (complexity > 1) m_scene_complexity += (complexity - 1);
     }
-    // ------------------------------------------------------------------------
-    float getLODMultiplier() { return m_lod_multiplier;             }
-    // ------------------------------------------------------------------------
-    void  setLODMultiplier(float multiplier) { m_lod_multiplier = multiplier; }
     // ------------------------------------------------------------------------
     bool isRecording() const { return m_recording; }
     // ------------------------------------------------------------------------
@@ -410,20 +397,20 @@ public:
     void clearForcedBloom() { m_forcedbloom.clear(); }
     // ------------------------------------------------------------------------
     const std::vector<BloomData> &getForcedBloom() const
-    {
+    { 
         return m_forcedbloom;
     }
     // ------------------------------------------------------------------------
     void clearBackgroundNodes() { m_background.clear(); }
     // ------------------------------------------------------------------------
-    void addBackgroundNode(scene::ISceneNode * const n)
+    void addBackgroundNode(scene::ISceneNode * const n) 
     {
         m_background.push_back(n);
     }
     // ------------------------------------------------------------------------
     scene::ISceneNode *addLight(const core::vector3df &pos, float energy,
                                 float radius, float r, float g, float b,
-                                bool sun_ = false,
+                                bool sun_ = false, 
                                 scene::ISceneNode* parent = NULL);
     // ------------------------------------------------------------------------
     void clearLights();
@@ -452,16 +439,16 @@ public:
     // ------------------------------------------------------------------------
     const core::matrix4 &getInvProjMatrix() const { return m_InvProjMatrix; }
     // ------------------------------------------------------------------------
-    void genProjViewMatrix()
+    void genProjViewMatrix() 
     {
-        m_ProjViewMatrix = m_ProjMatrix * m_ViewMatrix;
-        m_InvProjViewMatrix = m_ProjViewMatrix;
-        m_InvProjViewMatrix.makeInverse();
+        m_ProjViewMatrix = m_ProjMatrix * m_ViewMatrix; 
+        m_InvProjViewMatrix = m_ProjViewMatrix; 
+        m_InvProjViewMatrix.makeInverse(); 
     }
     // ------------------------------------------------------------------------
     const core::matrix4 &getProjViewMatrix() const { return m_ProjViewMatrix; }
     // ------------------------------------------------------------------------
-    const core::matrix4 &getInvProjViewMatrix() const
+    const core::matrix4 &getInvProjViewMatrix() const 
     {
         return m_InvProjViewMatrix;
     }
@@ -472,7 +459,7 @@ public:
     }
     // ------------------------------------------------------------------------
     const core::dimension2du getActualScreenSize() const
-    {
+    { 
         return m_actual_screen_size;
     }
     // ------------------------------------------------------------------------
@@ -533,11 +520,9 @@ public:
 
     void uploadLightingData();
     void sameRestart()             { m_resolution_changing = RES_CHANGE_SAME; }
-    /** Used when we don't want a changed resolution prompt but need to reinit things
-     * that sameRestart doesn't affect */
-    void fullRestart()             { m_resolution_changing = RES_CHANGE_SAME_FULL; }
     // ------------------------------------------------------------------------
-    u32 getDefaultFramebuffer() const;
+    u32 getDefaultFramebuffer() const
+                            { return m_video_driver->getDefaultFramebuffer(); }
     // ------------------------------------------------------------------------
     void handleWindowResize();
 };   // IrrDriver

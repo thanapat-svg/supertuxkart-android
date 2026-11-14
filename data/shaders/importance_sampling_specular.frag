@@ -1,5 +1,5 @@
 uniform samplerCube tex;
-uniform sampler2D samples;
+uniform samplerBuffer samples;
 uniform float ViewportSize;
 
 uniform mat4 PermutationMatrix;
@@ -20,9 +20,8 @@ void main(void)
 
     for (int i = 0; i < 1024; i++)
     {
-        vec2 texel = texelFetch(samples, ivec2(i, 0), 0).rg;
-        float Theta = texel.r;
-        float Phi = texel.g;
+        float Theta = texelFetch(samples, i).r;
+        float Phi = texelFetch(samples, i).g;
 
         vec3 L = cos(Theta) * RayDir + sin(Theta) * cos(Phi) * Tangent + sin(Theta) * sin(Phi) * Bitangent;
         float NdotL = clamp(dot(RayDir, L), 0., 1.);

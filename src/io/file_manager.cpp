@@ -43,14 +43,14 @@
 #include <FindDirectory.h>
 #endif
 
+#include <irrlicht.h>
+
 #include <stdio.h>
 #include <stdexcept>
 #include <sstream>
 #include <sys/stat.h>
 #include <iostream>
 #include <string>
-
-#include <IFileSystem.h>
 
 namespace irr {
     namespace io
@@ -850,38 +850,6 @@ std::string FileManager::getGPDir() const
 }   // getGPDir
 
 //-----------------------------------------------------------------------------
-/** Returns the directory in which the stdout file should be stored.
- */
-std::string FileManager::getStdoutDir() const
-{
-    return m_stdout_dir;
-}   // getStdoutDir
-
-//-----------------------------------------------------------------------------
-/** Obfuscates system username for common paths.
- */
-std::string FileManager::obfuscateUsername(const std::string &path)
-{
-    std::string obfuscated_path(path), asterisks("***");
-    if (obfuscated_path.size() > 6 && obfuscated_path.substr(0, 6) == "/home/") { // Linux usual Home Dir.
-        size_t next_delimiter_pos(obfuscated_path.find('/', 6));
-        if (next_delimiter_pos != std::string::npos)
-            obfuscated_path.replace(0, next_delimiter_pos, "~");
-    }
-    else if (obfuscated_path.size() > 9 && obfuscated_path.substr(0, 9) == "C:\\Users\\") { // Windows usual User Dir.
-        size_t next_delimiter_pos(obfuscated_path.find('\\', 9));
-        if (next_delimiter_pos != std::string::npos)
-            obfuscated_path.replace(9, next_delimiter_pos - 9, asterisks);
-    }
-    else if (obfuscated_path.size() > 7 && obfuscated_path.substr(0, 7) == "/Users/") { // Mac usual User Dir.
-        size_t next_delimiter_pos(obfuscated_path.find('/', 7));
-        if (next_delimiter_pos != std::string::npos)
-            obfuscated_path.replace(0, next_delimiter_pos, "~");
-    }
-    return obfuscated_path;
-}   // obfuscateUsername
-
-//-----------------------------------------------------------------------------
 /** Returns the full path of a texture file name by searching in all
  *  directories currently in the texture search path. The difference to
  *  a call getAsset(TEXTURE,...) is that the latter will only return
@@ -1047,16 +1015,15 @@ void FileManager::checkAndCreateConfigDir()
 #elif defined(__HAIKU__)
 
         BPath settings_dir;
-        if (find_directory(B_USER_SETTINGS_DIRECTORY, &settings_dir, true, NULL) == B_OK)
-        {
+        if (find_directory(B_USER_SETTINGS_DIRECTORY, &settings_dir, true, NULL) == B_OK) {
             m_user_config_dir = std::string(settings_dir.Path());
-        }
-        else if (getenv("HOME") != NULL)
-        {
-            m_user_config_dir = getenv("HOME");
-            m_user_config_dir += "/config/settings";
-        }
-        m_user_config_dir += "/SuperTuxKart";
+	} else {
+            if (getenv("HOME") != NULL)
+            {
+                m_user_config_dir = getenv("HOME");
+                m_user_config_dir += "/config/settings";
+            }
+	}
 
 #else
 
@@ -1123,8 +1090,6 @@ void FileManager::checkAndCreateAddonsDir()
 {
 #if defined(WIN32)
     m_addons_dir  = m_user_config_dir+"../addons/";
-#elif defined(__HAIKU__)
-    m_addons_dir  = m_user_config_dir+"addons/";
 #elif defined(__APPLE__)
     m_addons_dir  = getenv("HOME");
     m_addons_dir += "/Library/Application Support/SuperTuxKart/Addons/";
@@ -1214,7 +1179,7 @@ void FileManager::checkAndCreateReplayDir()
 */
 void FileManager::checkAndCreateCachedTexturesDir()
 {
-#if defined(WIN32) || defined(__HAIKU__)
+#if defined(WIN32)
     m_cached_textures_dir = m_user_config_dir + "cached-textures/";
 #elif defined(__APPLE__)
     m_cached_textures_dir = getenv("HOME");
@@ -1623,7 +1588,7 @@ bool FileManager::copyFile(const std::string &source, const std::string &dest)
         if (f_dest) fclose(f_dest);
         if (buffer) delete [] buffer;
     };
-    MemUtils::deref<decltype(scoped)> cls(scoped);
+    MemUtils::deref<decltype(scoped)> cls(scoped); 
     if(!f_source || !f_dest || !buffer) return false;
     size_t n;
     while((n=fread(buffer, 1, BUFFER_SIZE, f_source))>0)

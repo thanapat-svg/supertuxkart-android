@@ -42,8 +42,6 @@ bool supportsS3TCBC3();
 bool supportsBPTCBC7();
 // ----------------------------------------------------------------------------
 bool supportsASTC4x4();
-// ----------------------------------------------------------------------------
-bool supportsShaderStorageImageExtendedFormats();
 };   // GEVulkanFeatures
 
 }

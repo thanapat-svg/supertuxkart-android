@@ -70,7 +70,6 @@ void TrackObjectManager::init()
 {
     int moveable_objects = 0;
     bool warned = false;
-    m_on_start_done = false;
     for (unsigned i = 0; i < m_all_objects.m_contents_vector.size(); i++)
     {
         TrackObject* curr = m_all_objects.m_contents_vector[i];
@@ -101,16 +100,6 @@ void TrackObjectManager::init()
             moveable_objects++;
         }
     }
-
-    m_dynamic_objects.clear();
-    TrackObject* curr;
-    for_in (curr, m_all_objects)
-    {
-        if(curr->needsOngoingUpdates())
-            m_dynamic_objects.push_back(curr);
-    }
-    Log::verbose("TrackObjectManager","Dynamic objects are %i out of %i objects",
-        (int)m_dynamic_objects.size(), (int)m_all_objects.m_contents_vector.size());
 }   // init
 
 // ----------------------------------------------------------------------------
@@ -199,17 +188,8 @@ void TrackObjectManager::updateGraphics(float dt)
  */
 void TrackObjectManager::update(float dt)
 {
-    if (!m_on_start_done)
-    {
-        m_on_start_done = true;
-        TrackObject* curr;
-        for_in(curr, m_all_objects)
-        {
-            curr->runStartHook();
-        }
-    }
-
-    for (auto curr : m_dynamic_objects)
+    TrackObject* curr;
+    for_in (curr, m_all_objects)
     {
         curr->update(dt);
     }
@@ -230,7 +210,7 @@ void TrackObjectManager::resetAfterRewind()
  *  can be a physical object, and can e.g. be animated. A separate list of all
  *  driveable objects is maintained (in one case there were over 2000 bodies,
  *  but only one is driveable). The result of the raycast against the track
- *  mesh are the input parameter. It is then tested if the raycast against
+ *  mesh are the input parameter. It is then tested if the raycast against 
  *  a track object gives a 'closer' result. If so, the parameters hit_point,
  *  normal, and material will be updated.
  *  \param from/to The from and to position for the raycast.
@@ -291,20 +271,14 @@ bool TrackObjectManager::castRay(const btVector3 &from,
 void TrackObjectManager::insertObject(TrackObject* object)
 {
     m_all_objects.push_back(object);
-    // Inserting all objects here into the dynamic list is a safe way to guarantee
-    // no correctness regression here while keeping things simple. This function
-    // is either used when cloning for the child process, in which case there will
-    // be a later init() pass that will rebuild the tighter list, or in a few
-    // limited cases that don't bring performance concerns.
-    m_dynamic_objects.push_back(object);
-}   // insertObject
+}
 
 // ----------------------------------------------------------------------------
 void TrackObjectManager::insertDriveableObject(TrackObject* object)
 {
     if (object && object->isDriveable())
         m_driveable_objects.push_back(object);
-}   // insertDriveableObject
+}
 
 // ----------------------------------------------------------------------------
 /** Removes the object from the scene graph, bullet, and the list of
@@ -314,13 +288,5 @@ void TrackObjectManager::insertDriveableObject(TrackObject* object)
 void TrackObjectManager::removeObject(TrackObject* obj)
 {
     m_all_objects.remove(obj);
-    // Find the object in the dynamic list
-    auto obj_it = std::find(m_dynamic_objects.begin(), m_dynamic_objects.end(), obj);
-    // Constant-time removal via swapping
-    if (obj_it != m_dynamic_objects.end())
-    {
-        *obj_it = m_dynamic_objects.back();
-        m_dynamic_objects.pop_back();
-    }
     delete obj;
 }   // removeObject

@@ -41,15 +41,7 @@ class CreditsSection;
 class CreditsScreen : public GUIEngine::Screen,
                       public GUIEngine::ScreenSingleton<CreditsScreen>
 {
-    // ----------------------------------------------------------------------------------------
-    /** Used to track the current stage of credit display. */
-    enum CreditStage
-    {
-        SECTION_FADE_IN        = 0,
-        ELEMENTS_DISPLAY       = 1,
-        SECTION_FADE_OUT       = 2,
-        PAUSE_BETWEEN_SECTIONS = 3
-    };
+    float m_time_element;
 
     PtrVector<CreditsSection, HOLD> m_sections;
     CreditsSection* getCurrentSection();
@@ -60,18 +52,14 @@ class CreditsScreen : public GUIEngine::Screen,
     int m_curr_section;
     int m_curr_element;
 
-    CreditStage m_current_stage;
-
-    float m_time_til_next_step;
+    float time_before_next_step;
 
     friend class GUIEngine::ScreenSingleton<CreditsScreen>;
     CreditsScreen();
     bool getLineAsWide(std::ifstream& file, core::stringw* out);
-    float displayTimeForElement(int element_id);
-    void drawEntries();
 
     bool m_is_victory_music;
-    void updateAreaSize();
+
 public:
 
 
@@ -102,12 +90,6 @@ public:
             return music_manager->getMusicInformation("win_theme.music");
         else
             return stk_config->m_title_music;
-    }
-
-    virtual void onResize() OVERRIDE
-    {
-        Screen::onResize();
-        updateAreaSize();
     }
 };
 

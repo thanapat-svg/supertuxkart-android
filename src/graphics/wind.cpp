@@ -19,8 +19,6 @@
 #include "graphics/wind.hpp"
 #include "utils/helpers.hpp"
 
-#include <IrrlichtDevice.h>
-
 Wind::Wind()
 {
     m_seed = (float)((rand() % 1000) - 500);

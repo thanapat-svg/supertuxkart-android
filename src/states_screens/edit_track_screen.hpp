@@ -19,9 +19,9 @@
 #define HEADER_EDIT_TRACK_SCREEN_HPP
 
 #include "guiengine/screen.hpp"
-#include "guiengine/widgets/text_box_widget.hpp"
+#include "guiengine/widgets.hpp"
 
-namespace GUIEngine { class IconButtonWidget; class Widget; }
+namespace GUIEngine { class Widget; }
 
 namespace irr { namespace gui { class STKModifiedSpriteBank; } }
 
@@ -33,8 +33,7 @@ class Track;
   */
 class EditTrackScreen :
     public GUIEngine::Screen,
-    public GUIEngine::ScreenSingleton<EditTrackScreen>,
-    public GUIEngine::ITextBoxWidgetListener
+    public GUIEngine::ScreenSingleton<EditTrackScreen>
 {
     friend class GUIEngine::ScreenSingleton<EditTrackScreen>;
 
@@ -53,8 +52,6 @@ class EditTrackScreen :
     bool                m_result;
 
     GUIEngine::IconButtonWidget* m_screenshot;
-    
-    GUIEngine::TextBoxWidget *m_search_box;
 
 public:
 
@@ -78,15 +75,6 @@ public:
 
     /** \brief implement callback from parent class GUIEngine::Screen */
     virtual void init() OVERRIDE;
-
-    /** Rebuild the list of tracks based on search text */
-    virtual void onTextUpdated() OVERRIDE
-    {
-        loadTrackList();
-        // After buildTrackList the m_search_box may be unfocused
-        m_search_box->focused(0);
-    }
-
 };
 
 #endif

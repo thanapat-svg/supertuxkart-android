@@ -41,7 +41,7 @@
 #include "network/network_string.hpp"
 #include "network/stk_host.hpp"
 #include "race/race_manager.hpp"
-#include "states_screens/help/help_screen_1.hpp"
+#include "states_screens/help_screen_1.hpp"
 #include "states_screens/main_menu_screen.hpp"
 #include "states_screens/race_gui_base.hpp"
 #include "states_screens/race_gui_multitouch.hpp"
@@ -50,13 +50,6 @@
 #include "states_screens/state_manager.hpp"
 #include "utils/string_utils.hpp"
 #include "utils/translation.hpp"
-
-#include <IrrlichtDevice.h>
-
-#ifndef SERVER_ONLY
-#include <ge_main.hpp>
-#include <ge_vulkan_driver.hpp>
-#endif
 
 using namespace GUIEngine;
 using namespace irr::core;
@@ -71,7 +64,6 @@ RacePausedDialog::RacePausedDialog(const float percentWidth,
     m_target_team = KART_TEAM_NONE;
     m_self_destroy = false;
     m_from_overworld = false;
-    m_vk_pbr_toggle = NULL;
 
     if (dynamic_cast<OverWorld*>(World::getWorld()) != NULL)
     {
@@ -115,7 +107,7 @@ RacePausedDialog::RacePausedDialog(const float percentWidth,
                 if (m_target_team != KART_TEAM_NONE)
                     getWidget("team")->setActive(false);
             }
-        } // if race chat is enabled
+        }
         else
         {
             m_text_box->setActive(false);
@@ -125,22 +117,15 @@ RacePausedDialog::RacePausedDialog(const float percentWidth,
             getWidget("emoji")->setVisible(false);
             if (m_target_team != KART_TEAM_NONE)
                 getWidget("team")->setVisible(false);
-        } // else (race chat disabled)
-    } // if isNetworking
-    else if (!RaceManager::get()->isBenchmarking())
+        }
+    }
+    else
     {
         World::getWorld()->schedulePause(WorldStatus::IN_GAME_MENU_PHASE);
     }
-
     if (dynamic_cast<OverWorld*>(World::getWorld()) == NULL)
     {
-        if (RaceManager::get()->isBenchmarking())
-        {
-            // Other buttons of the pause menu are removed in benchmark mode
-            getWidget<IconButtonWidget>("backbtn")->setLabel(_("Back to the Performance Test"));
-            getWidget<IconButtonWidget>("exit")->setLabel(_("Exit the Performance Test"));
-        }
-        else if (RaceManager::get()->isBattleMode() || RaceManager::get()->isCTFMode())
+        if (RaceManager::get()->isBattleMode() || RaceManager::get()->isCTFMode())
         {
             getWidget<IconButtonWidget>("backbtn")->setLabel(_("Back to Battle"));
             if (!NetworkConfig::get()->isNetworking())
@@ -178,7 +163,7 @@ RacePausedDialog::~RacePausedDialog()
         music_manager->resumeMusic();
         SFXManager::get()->resumeAll();
     }
-    else if (!RaceManager::get()->isBenchmarking())
+    else
     {
         World::getWorld()->scheduleUnpause();
     }
@@ -228,18 +213,6 @@ void RacePausedDialog::loadedFromFile()
         {
             choice_ribbon->deleteChild("restart");
         }
-    }
-
-    // Remove all extraneous buttons in benchmark mode
-    if (RaceManager::get()->isBenchmarking())
-    {
-        GUIEngine::RibbonWidget* choice_ribbon =
-            getWidget<GUIEngine::RibbonWidget>("choiceribbon");
-        choice_ribbon->deleteChild("newrace");
-        choice_ribbon->deleteChild("restart");
-        choice_ribbon->deleteChild("endrace");
-        choice_ribbon->deleteChild("options");
-        choice_ribbon->deleteChild("help");
     }
 }
 
@@ -309,12 +282,12 @@ GUIEngine::EventPropagation
                 m_touch_controls = MULTITOUCH_CONTROLS_STEERING_WHEEL;
             }
             
-            if (m_touch_controls == MULTITOUCH_CONTROLS_ACCELEROMETER &&
+            if (m_touch_controls == MULTITOUCH_CONTROLS_ACCELEROMETER && 
                 !accelerometer_available)
             {
                 m_touch_controls = MULTITOUCH_CONTROLS_STEERING_WHEEL;
             }
-            else if (m_touch_controls == MULTITOUCH_CONTROLS_GYROSCOPE &&
+            else if (m_touch_controls == MULTITOUCH_CONTROLS_GYROSCOPE && 
                 !gyroscope_available)
             {
                 m_touch_controls = MULTITOUCH_CONTROLS_STEERING_WHEEL;
@@ -341,10 +314,6 @@ GUIEngine::EventPropagation
             RaceManager::get()->exitRace();
             RaceManager::get()->setAIKartOverride("");
 
-            // If a benchmark is exited early through the pause menu, disable benchmarking mode
-            if (RaceManager::get()->isBenchmarking())
-                RaceManager::get()->setBenchmarking(false);
-
             if (NetworkConfig::get()->isNetworking())
             {
                 StateManager::get()->resetAndSetStack(
@@ -368,28 +337,14 @@ GUIEngine::EventPropagation
         }
         else if (selection == "help")
         {
-            GE::GEVulkanDriver* vk_pbr_toggle = m_vk_pbr_toggle;
             dismiss();
-#ifndef SERVER_ONLY
-            if (vk_pbr_toggle)
-            {
-                UserConfigParams::m_dynamic_lights = !UserConfigParams::m_dynamic_lights;
-                GE::getGEConfig()->m_pbr = UserConfigParams::m_dynamic_lights;
-                vk_pbr_toggle->updateDriver(false/*scale_changed*/, true/*pbr_changed*/);
-            }
-            else
-            {
-                HelpScreen1::getInstance()->push();
-            }
-#endif
+            HelpScreen1::getInstance()->push();
             return GUIEngine::EVENT_BLOCK;
         }
         else if (selection == "options")
         {
             dismiss();
-#ifndef SERVER_ONLY
             OptionsScreenGeneral::getInstance()->push();
-#endif
             return GUIEngine::EVENT_BLOCK;
         }
         else if (selection == "restart")
@@ -462,20 +417,7 @@ void RacePausedDialog::beforeAddingWidgets()
     {
         index = choice_ribbon->findItemNamed("help");
         if (index != -1)
-        {
-#ifndef SERVER_ONLY
-            m_vk_pbr_toggle = GE::getVKDriver();
-            if (m_vk_pbr_toggle)
-            {
-                IconButtonWidget* hw = getWidget<IconButtonWidget>("help");
-                IconButtonWidget* ew = getWidget<IconButtonWidget>("exit");
-                hw->m_properties[PROP_ID] = "exit";
-                ew->m_properties[PROP_ID] = "help";
-            }
-            else
-                choice_ribbon->setItemVisible(index, false);
-#endif
-        }
+            choice_ribbon->setItemVisible(index, false);
         index = choice_ribbon->findItemNamed("options");
         if (index != -1)
             choice_ribbon->setItemVisible(index, false);
@@ -527,7 +469,7 @@ void RacePausedDialog::beforeAddingWidgets()
         
     bool has_multitouch_gui = false;
     
-    if (World::getWorld() && World::getWorld()->getRaceGUI() &&
+    if (World::getWorld() && World::getWorld()->getRaceGUI() && 
         World::getWorld()->getRaceGUI()->getMultitouchGUI() &&
         !World::getWorld()->getRaceGUI()->getMultitouchGUI()->isSpectatorMode())
     {
@@ -552,19 +494,7 @@ void RacePausedDialog::init()
 {
     m_touch_controls = UserConfigParams::m_multitouch_controls;
     updateTouchDeviceIcon();
-#ifndef SERVER_ONLY
-    if (m_vk_pbr_toggle)
-    {
-        IconButtonWidget* widget = getWidget<IconButtonWidget>("help");
-        widget->setLabel(UserConfigParams::m_dynamic_lights ?
-            _("Disable advanced pipeline") : _("Enable advanced pipeline"));
-        widget->setImage(irr_driver->getTexture(FileManager::GUI_ICON,
-            "options_video.png"));
-        widget = getWidget<IconButtonWidget>("exit");
-        widget->setImage(irr_driver->getTexture(FileManager::GUI_ICON,
-            "main_quit.png"));
-    }
-#endif
+    
 }   // init
 
 // ----------------------------------------------------------------------------
@@ -610,17 +540,17 @@ void RacePausedDialog::updateTouchDeviceIcon()
     case MULTITOUCH_CONTROLS_UNDEFINED:
     case MULTITOUCH_CONTROLS_STEERING_WHEEL:
         widget->setLabel(_("Steering wheel"));
-        widget->setImage(irr_driver->getTexture(FileManager::GUI_ICON,
+        widget->setImage(irr_driver->getTexture(FileManager::GUI_ICON, 
                                                 "android/steering_wheel.png"));
         break;
     case MULTITOUCH_CONTROLS_ACCELEROMETER:
         widget->setLabel(_("Accelerometer"));
-        widget->setImage(irr_driver->getTexture(FileManager::GUI_ICON,
+        widget->setImage(irr_driver->getTexture(FileManager::GUI_ICON, 
                                                 "android/accelerator_icon.png"));
         break;
     case MULTITOUCH_CONTROLS_GYROSCOPE:
         widget->setLabel(_("Gyroscope"));
-        widget->setImage(irr_driver->getTexture(FileManager::GUI_ICON,
+        widget->setImage(irr_driver->getTexture(FileManager::GUI_ICON, 
                                                 "android/gyroscope_icon.png"));
         break;
     default:

@@ -30,11 +30,8 @@
 #include <set>
 
 #include <irrString.h>
-namespace irr
-{
-    class IrrlichtDevice;
-    namespace io { class IFileSystem; }
-}
+#include <IFileSystem.h>
+namespace irr { class IrrlichtDevice; }
 using namespace irr;
 
 #include "io/xml_node.hpp"
@@ -155,8 +152,6 @@ public:
     std::string       getReplayDir() const;
     std::string       getCachedTexturesDir() const;
     std::string       getGPDir() const;
-    std::string       getStdoutDir() const;
-    static std::string obfuscateUsername(const std::string &path);
     bool              checkAndCreateDirectory(const std::string &path);
     bool              checkAndCreateDirectoryP(const std::string &path);
     const std::string &getAddonsDir() const;

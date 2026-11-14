@@ -34,14 +34,16 @@
 #include <mutex>
 #include <set>
 
+#ifdef ENABLE_SQLITE3
+#include <sqlite3.h>
+#endif
+
 class BareNetworkString;
-class DatabaseConnector;
 class NetworkItemManager;
 class NetworkString;
 class NetworkPlayerProfile;
 class STKPeer;
 class SocketAddress;
-class Ranking;
 
 namespace Online
 {
@@ -76,12 +78,39 @@ private:
         std::string m_country_code;
         bool m_tried = false;
     };
+    bool m_player_reports_table_exists;
 
 #ifdef ENABLE_SQLITE3
-    DatabaseConnector* m_db_connector;
+    sqlite3* m_db;
+
+    std::string m_server_stats_table;
+
+    bool m_ip_ban_table_exists;
+
+    bool m_ipv6_ban_table_exists;
+
+    bool m_online_id_ban_table_exists;
+
+    bool m_ip_geolocation_table_exists;
+
+    bool m_ipv6_geolocation_table_exists;
+
+    uint64_t m_last_poll_db_time;
 
     void pollDatabase();
+
+    bool easySQLQuery(const std::string& query,
+        std::function<void(sqlite3_stmt* stmt)> bind_function = nullptr) const;
+
+    void checkTableExists(const std::string& table, bool& result);
+
+    std::string ip2Country(const SocketAddress& addr) const;
+
+    std::string ipv62Country(const SocketAddress& addr) const;
 #endif
+    void initDatabase();
+
+    void destroyDatabase();
 
     std::atomic<ServerState> m_state;
 
@@ -96,6 +125,10 @@ private:
 
     std::atomic<ResetState> m_rs_state;
 
+    /** Hold the next connected peer for server owner if current one expired
+     * (disconnected). */
+    std::weak_ptr<STKPeer> m_server_owner;
+
     /** AI peer which holds the list of reserved AI for dedicated server. */
     std::weak_ptr<STKPeer> m_ai_peer;
 
@@ -105,6 +138,18 @@ private:
     std::vector<std::shared_ptr<NetworkPlayerProfile> > m_ai_profiles;
 
     std::atomic<uint32_t> m_server_owner_id;
+
+    /** Official karts and tracks available in server. */
+    std::pair<std::set<std::string>, std::set<std::string> > m_official_kts;
+
+    /** Addon karts and tracks available in server. */
+    std::pair<std::set<std::string>, std::set<std::string> > m_addon_kts;
+
+    /** Addon arenas available in server. */
+    std::set<std::string> m_addon_arenas;
+
+    /** Addon soccers available in server. */
+    std::set<std::string> m_addon_soccers;
 
     /** Available karts and tracks for all clients, this will be initialized
      *  with data in server first. */
@@ -121,6 +166,9 @@ private:
     std::map<std::weak_ptr<STKPeer>, bool,
         std::owner_less<std::weak_ptr<STKPeer> > > m_peers_ready;
 
+    std::map<std::weak_ptr<STKPeer>, std::set<irr::core::stringw>,
+        std::owner_less<std::weak_ptr<STKPeer> > > m_peers_muted_players;
+
     std::weak_ptr<Online::Request> m_server_registering;
 
     /** Timeout counter for various state. */
@@ -136,7 +184,39 @@ private:
 
     std::map<std::string, uint64_t> m_pending_peer_connection;
 
-    std::shared_ptr<Ranking> m_ranking;
+    /* Ranking related variables */
+    // If updating the base points, update the base points distribution in DB
+    const double BASE_RANKING_POINTS    = 4000.0; // Given to a new player on 1st connection to a ranked server
+    const double BASE_RATING_DEVIATION  = 1000.0; // Given to a new player on 1st connection to a ranked server
+    const double MIN_RATING_DEVIATION   = 100.0; // A server cron job makes RD go up if a player is inactive
+    const double BASE_RD_PER_DISCONNECT = 15.0;
+    const double VAR_RD_PER_DISCONNECT  = 3.0;
+    const double MAX_SCALING_TIME       = 360.0;
+    const double BASE_POINTS_PER_SECOND = 0.18;
+    const double HANDICAP_OFFSET        = 2000.0;
+
+    /** Online id to profile map, handling disconnection in ranked server */
+    std::map<uint32_t, std::weak_ptr<NetworkPlayerProfile> > m_ranked_players;
+
+    /** Multi-session rating for each current player */
+    std::map<uint32_t, double> m_raw_scores;
+
+    /** The rating uncertainty for each current player */
+    std::map<uint32_t, double> m_rating_deviations;
+
+    /** A single number compounding "raw score" and RD,
+      * for rating display to players and rankings */
+    std::map<uint32_t, double> m_scores;
+
+    /** The maximum rating obtained for each current player.
+      * This is based on m_scores, not m_raw_scores */
+    std::map<uint32_t, double> m_max_scores;
+
+    /** Number of disconnects in the previous 64 ranked races for each current players */
+    std::map<uint32_t, uint64_t> m_num_ranked_disconnects;
+
+    /** Number of ranked races done for each current players */
+    std::map<uint32_t, unsigned> m_num_ranked_races;
 
     /* Saved the last game result */
     NetworkString* m_result_ns;
@@ -153,8 +233,6 @@ private:
     std::atomic<int> m_game_mode;
 
     std::atomic<int> m_lobby_players;
-
-    std::atomic<int> m_current_ai_count;
 
     std::atomic<uint64_t> m_last_success_poll_time;
 
@@ -193,6 +271,7 @@ private:
     void handleChat(Event* event);
     void unregisterServer(bool now,
         std::weak_ptr<ServerLobby> sl = std::weak_ptr<ServerLobby>());
+    void updatePlayerList(bool update_when_reset_server = false);
     void updateServerOwner();
     void handleServerConfiguration(Event* event);
     void updateTracksForMode();
@@ -249,12 +328,19 @@ private:
                                   const irr::core::stringw& online_name,
                                   const std::string& country_code);
     bool handleAllVotes(PeerVote* winner, uint32_t* winner_peer_id);
-    template<typename T>
-    void findMajorityValue(const std::map<T, unsigned>& choices, unsigned cur_players,
-                           T* best_choice, float* rate);
     void getRankingForPlayer(std::shared_ptr<NetworkPlayerProfile> p);
     void submitRankingsToAddons();
     void computeNewRankings();
+    void clearDisconnectedRankedPlayer();
+    double getModeFactor();
+    double getModeSpread();
+    double getTimeSpread(double time);
+    double getUncertaintySpread(uint32_t online_id);
+    double scalingValueForTime(double time);
+    double computeH2HResult(double player1_time, double player2_time);
+    double computeDataAccuracy(double player1_rd, double player2_rd,
+                               double player1_scores, double player2_scores,
+                               int player_count, bool handicap_used);
     void checkRaceFinished();
     void getHitCaptureLimit();
     void configPeersStartTime();
@@ -270,8 +356,9 @@ private:
     void encodePlayers(BareNetworkString* bns,
         std::vector<std::shared_ptr<NetworkPlayerProfile> >& players) const;
     std::vector<std::shared_ptr<NetworkPlayerProfile> > getLivePlayers() const;
-    bool setPlayerKarts(const NetworkString& ns, STKPeer* peer) const;
+    void setPlayerKarts(const NetworkString& ns, STKPeer* peer) const;
     bool handleAssets(const NetworkString& ns, STKPeer* peer);
+    void handleServerCommand(Event* event, std::shared_ptr<STKPeer> peer);
     void liveJoinRequest(Event* event);
     void rejectLiveJoin(STKPeer* peer, BackLobbyReason blr);
     bool canLiveJoinNow() const;
@@ -286,36 +373,11 @@ private:
     void testBannedForIP(STKPeer* peer) const;
     void testBannedForIPv6(STKPeer* peer) const;
     void testBannedForOnlineId(STKPeer* peer, uint32_t online_id) const;
+    void writeDisconnectInfoTable(STKPeer* peer);
     void writePlayerReport(Event* event);
     bool supportsAI();
     void updateAddons();
 public:
-    // Having those variable private would just require a bunch of boilerplate
-    // code to access them... What's the point?
-
-    /** Hold the next connected peer for server owner if current one expired
-     * (disconnected). */
-    std::weak_ptr<STKPeer> m_server_owner;
-
-    /** Official karts and tracks available in server. */
-    // FIXME: We should use two different variables instead of this weird
-    //        structure that contains both a list of tracks and a list of karts
-    std::pair<std::set<std::string>, std::set<std::string> > m_official_kts;
-
-    /** Addon karts and tracks available in server. */
-    // FIXME: We should use two different variables instead of this weird
-    //        structure that contains both a list of tracks and a list of karts
-    std::pair<std::set<std::string>, std::set<std::string> > m_addon_kts;
-
-    /** Addon arenas available in server. */
-    std::set<std::string> m_addon_arenas;
-
-    /** Addon soccers available in server. */
-    std::set<std::string> m_addon_soccers;
-
-    std::map<std::weak_ptr<STKPeer>, std::set<irr::core::stringw>,
-        std::owner_less<std::weak_ptr<STKPeer> > > m_peers_muted_players;
-
              ServerLobby();
     virtual ~ServerLobby();
 
@@ -325,7 +387,6 @@ public:
     virtual void update(int ticks) OVERRIDE;
     virtual void asynchronousUpdate() OVERRIDE;
 
-    void updatePlayerList(bool update_when_reset_server = false);
     void startSelection(const Event *event=NULL);
     void checkIncomingConnectionRequests();
     void finishedLoadingWorld() OVERRIDE;
@@ -350,13 +411,8 @@ public:
         return std::find(m_ai_profiles.begin(), m_ai_profiles.end(), npp) !=
             m_ai_profiles.end();
     }
-    uint32_t getServerIdOnline() const                 { return m_server_id_online; }
-    uint32_t getClientServerHostId() const { return m_client_server_host_id.load(); }
-    void setClientServerHostId(uint32_t id)         { m_client_server_host_id = id; }
-    static int m_fixed_laps;
-    bool playerReportsTableExists() const;
-    GameSetup* getGameSetup()                          { return m_game_setup; }
-    ProcessType getProcessType()                     { return m_process_type; }
+    uint32_t getServerIdOnline() const           { return m_server_id_online; }
+    void setClientServerHostId(uint32_t id)   { m_client_server_host_id = id; }
 };   // class ServerLobby
 
 #endif // SERVER_LOBBY_HPP

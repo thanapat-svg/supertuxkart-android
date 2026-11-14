@@ -47,7 +47,6 @@
 #include <stdexcept>
 #include <string>
 
-#include <IFileSystem.h>
 #ifndef SERVER_ONLY
 #include <ge_main.hpp>
 #endif
@@ -129,6 +128,18 @@ KartProperties::~KartProperties()
             ShaderFilesManager::getInstance()->removeUnusedShaderFiles();
             SP::SPTextureManager::get()->removeUnusedTextures();
         }
+
+        if (GE::getDriver()->getDriverType() != video::EDT_VULKAN)
+            return;
+        auto& paths = GE::getGEConfig()->m_ondemand_load_texture_paths;
+        auto it = paths.begin();
+        while (it != paths.end())
+        {
+            if (StringUtils::startsWith(*it, m_root_absolute_path))
+                it = paths.erase(it);
+            else
+                it++;
+        }
     }
 #endif
 }   // ~KartProperties
@@ -145,11 +156,6 @@ KartProperties::~KartProperties()
 void KartProperties::copyForPlayer(const KartProperties *source,
                                    HandicapLevel h)
 {
-    if (!source)
-    {
-        return;
-    }
-    
     *this = *source;
 
     // After the memcpy any pointers will be shared.
@@ -189,13 +195,11 @@ void KartProperties::copyFrom(const KartProperties *source)
 }   // copyFrom
 
 //-----------------------------------------------------------------------------
-std::vector<std::string> KartProperties::handleOnDemandLoadTexture()
+void KartProperties::handleOnDemandLoadTexture()
 {
-    std::vector<std::string> odt;
 #ifndef SERVER_ONLY
     if (GE::getDriver()->getDriverType() != video::EDT_VULKAN)
-        return odt;
-
+        return;
     std::set<std::string> files;
     // Remove the last /
     m_root_absolute_path = StringUtils::getPath(m_root);
@@ -212,13 +216,9 @@ std::vector<std::string> KartProperties::handleOnDemandLoadTexture()
     {
         if (image_extensions.find(StringUtils::getExtension(f)) !=
             image_extensions.end())
-        {
             GE::getGEConfig()->m_ondemand_load_texture_paths.insert(f);
-            odt.push_back(f);
-        }
     }
 #endif
-    return odt;
 }   // handleOnDemandLoadTexture
 
 //-----------------------------------------------------------------------------
@@ -265,7 +265,7 @@ void KartProperties::load(const std::string &filename, const std::string &node)
         m_is_addon = true;
     }
 
-    std::vector<std::string> odt = handleOnDemandLoadTexture();
+    handleOnDemandLoadTexture();
     try
     {
         if(!root || root->getName()!="kart")
@@ -282,13 +282,6 @@ void KartProperties::load(const std::string &filename, const std::string &node)
     }
     catch(std::exception& err)
     {
-        if(root) delete root;
-        // Special-case when aborting due to a kart version mismatch.
-        // This allows us to display a simple warning instead of spurious errors.
-        char ver[] = "version";
-        if (strcmp(err.what(), ver) == 0)
-            throw std::runtime_error("version");
-
         Log::error("[KartProperties]", "Error while parsing KartProperties '%s':",
                    filename.c_str());
         Log::error("[KartProperties]", "%s", err.what());
@@ -354,12 +347,17 @@ void KartProperties::load(const std::string &filename, const std::string &node)
     else
         m_minimap_icon = NULL;
 
-    const bool success = m_kart_model->loadModels(*this);
-    if (!success)
+    // Only load the model if the .kart file has the appropriate version,
+    // otherwise warnings are printed.
+    if (m_version >= 1)
     {
-        file_manager->popTextureSearchPath();
-        file_manager->popModelSearchPath();
-        throw std::runtime_error("Cannot load kart models");
+        const bool success = m_kart_model->loadModels(*this);
+        if (!success)
+        {
+            file_manager->popTextureSearchPath();
+            file_manager->popModelSearchPath();
+            throw std::runtime_error("Cannot load kart models");
+        }
     }
 
     if(m_gravity_center_shift.getX()==UNDEFINED)
@@ -384,13 +382,6 @@ void KartProperties::load(const std::string &filename, const std::string &node)
     file_manager->popTextureSearchPath();
     file_manager->popModelSearchPath();
 
-#ifndef SERVER_ONLY
-    if (GE::getDriver()->getDriverType() == video::EDT_VULKAN)
-    {
-        for (auto& t : odt)
-            GE::getGEConfig()->m_ondemand_load_texture_paths.erase(t);
-    }
-#endif
 }   // load
 
 // ----------------------------------------------------------------------------
@@ -465,22 +456,10 @@ void KartProperties::combineCharacteristics(HandicapLevel handicap)
 //-----------------------------------------------------------------------------
 /** Actually reads in the data from the xml file.
  *  \param root Root of the xml tree.
- *  \param called_from_stk_config This function can be called in different contexts.
- * When it's called from stk_config to load default parameters, there is no point
- * in performing a version check, and trying to check stk_config while it's still
- * being initialized would cause issues. On the other hand, when we load a kart's XML,
- * we need to check in stk_config the min and max supported versions.
  */
-void KartProperties::getAllData(const XMLNode * root, bool called_from_stk_config)
+void KartProperties::getAllData(const XMLNode * root)
 {
     root->get("version",           &m_version);
-
-    // If the version of the kart file is not supported, ignore this .kart file
-    if (!called_from_stk_config && (m_version < stk_config->m_min_kart_version ||
-                                    m_version > stk_config->m_max_kart_version))
-    {
-        throw std::runtime_error("version");
-    }
 
     root->get("name",              &m_name             );
 
@@ -686,18 +665,12 @@ bool KartProperties::operator<(const KartProperties &other) const
     PlayerProfile *p = PlayerManager::getCurrentPlayer();
     bool this_is_locked = p->isLocked(getIdent());
     bool other_is_locked = p->isLocked(other.getIdent());
-    bool this_is_favorite = p->isFavoriteKart(getIdent());
-    bool other_is_favorite = p->isFavoriteKart(other.getIdent());
-
-    if (this_is_locked != other_is_locked)
+    if (this_is_locked == other_is_locked)
     {
+        return getName() < other.getName();
+    }
+    else
         return other_is_locked;
-    }
-    else if (this_is_favorite != other_is_favorite)
-    {
-        return this_is_favorite;
-    }
-    else return getName() < other.getName();
 
     return true;
 }  // operator<

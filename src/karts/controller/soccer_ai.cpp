@@ -32,7 +32,7 @@
 #endif
 
 #ifdef BALL_AIM_DEBUG
-#include "graphics/camera/camera.hpp"
+#include "graphics/camera.hpp"
 #endif
 
 SoccerAI::SoccerAI(AbstractKart *kart)

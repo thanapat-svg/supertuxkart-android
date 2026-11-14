@@ -24,8 +24,6 @@
 
 #ifdef ANDROID
 
-#include <irrlicht.h>
-
 ProgressBarAndroid::ProgressBarAndroid()
 {
 #ifndef SERVER_ONLY

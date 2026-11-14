@@ -118,9 +118,8 @@ void ItemManager::loadDefaultItemMeshes()
 #endif
             m_item_lowres_mesh[i]->grab();
         }
-        std::string icon = "icon-" + item_names[(ItemState::ItemType)i] + ".png";
-        if (preloadIcon(icon))
-            m_icon[i] = icon;
+        m_icon[i] = "icon-" + item_names[(ItemState::ItemType)i] + ".png";
+        preloadIcon(m_icon[i]);
     }   // for i
     delete root;
     preloadIcon("item_spark.png");
@@ -129,15 +128,14 @@ void ItemManager::loadDefaultItemMeshes()
 //-----------------------------------------------------------------------------
 /** Preload icon materials to avoid hangs when firstly insert item
  */
-bool ItemManager::preloadIcon(const std::string& name)
+void ItemManager::preloadIcon(const std::string& name)
 {
     // From IrrDriver::addBillboard
     Material* m = material_manager->getMaterial(name, false/*full_path*/,
         /*make_permanent*/true, /*complain_if_not_found*/true,
         /*strip_path*/false, /*install*/false);
-    return m->getTexture(true/*srgb*/, m->getShaderName() == "additive" ||
-        m->getShaderName() == "alphablend" ? true : false/*premul_alpha*/) !=
-        NULL;
+    m->getTexture(true/*srgb*/, m->getShaderName() == "additive" ||
+        m->getShaderName() == "alphablend" ? true : false/*premul_alpha*/);
 }   // preloadIcon
 
 //-----------------------------------------------------------------------------
@@ -279,7 +277,7 @@ void ItemManager::insertItemInQuad(Item *item)
  *  \param server_normal The normal as seen on the server.
  */
 Item* ItemManager::dropNewItem(ItemState::ItemType type,
-                               const AbstractKart *kart,
+                               const AbstractKart *kart, 
                                const Vec3 *server_xyz,
                                const Vec3 *server_normal)
 {
@@ -300,7 +298,7 @@ Item* ItemManager::dropNewItem(ItemState::ItemType type,
 
         // We will get no material if the kart is 'over nothing' when dropping
         // the bubble gum. In most cases this means that the item does not need
-        // to be created (and we just return NULL).
+        // to be created (and we just return NULL). 
         if (!material_hit) return NULL;
         normal.normalize();
         pos = hit_point + kart->getTrans().getBasis() * Vec3(0, -0.05f, 0);
@@ -591,7 +589,7 @@ void ItemManager::switchItemsInternal(std::vector<ItemState*> &all_items)
 }   // switchItems
 
 //-----------------------------------------------------------------------------
-bool ItemManager::randomItemsForArena(const std::vector<btTransform>& pos)
+bool ItemManager::randomItemsForArena(const AlignedArray<btTransform>& pos)
 {
     if (!UserConfigParams::m_random_arena_item) return false;
     if (!ArenaGraph::get()) return false;

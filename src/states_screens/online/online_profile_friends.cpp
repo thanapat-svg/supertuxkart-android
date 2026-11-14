@@ -21,11 +21,6 @@
 #include "guiengine/scalable_font.hpp"
 #include "guiengine/screen.hpp"
 #include "guiengine/widget.hpp"
-#include "guiengine/widgets/button_widget.hpp"
-#include "guiengine/widgets/list_widget.hpp"
-#include "guiengine/widgets/ribbon_widget.hpp"
-#include "guiengine/widgets/text_box_widget.hpp"
-#include "online/profile_manager.hpp"
 #include "states_screens/dialogs/user_info_dialog.hpp"
 #include "states_screens/online/online_user_search.hpp"
 #include "states_screens/state_manager.hpp"
@@ -262,7 +257,7 @@ void OnlineProfileFriends::onUpdate(float delta)
     {
         if (m_visiting_profile->hasFetchedFriends())
         {
-            // When browsing other users friends there is no Since/Status
+            // When browsing other users friends there is no Since/Status 
             // columns, so force sorting by name
             if (!m_visiting_profile->isCurrentUser() && m_sort_column != 0)
             {

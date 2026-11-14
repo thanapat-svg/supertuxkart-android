@@ -51,17 +51,12 @@
 #include "race/race_manager.hpp"
 #include "states_screens/dialogs/server_info_dialog.hpp"
 #include "states_screens/online/server_selection.hpp"
-#include "states_screens/main_menu_screen.hpp"
 #include "states_screens/state_manager.hpp"
 #include "utils/profiler.hpp"
 #include "utils/string_utils.hpp"
 #include "utils/time.hpp"
 #include "utils/translation.hpp"
 #include "io/rich_presence.hpp"
-
-#include <thread>
-
-#include <IrrlichtDevice.h>
 
 #ifndef WIN32
 #include <unistd.h>
@@ -86,7 +81,7 @@ extern "C" {
 MainLoop* main_loop = 0;
 
 #ifdef WIN32
-LRESULT CALLBACK separateProcessProc(_In_ HWND hwnd, _In_ UINT uMsg,
+LRESULT CALLBACK separateProcessProc(_In_ HWND hwnd, _In_ UINT uMsg, 
                                      _In_ WPARAM wParam, _In_ LPARAM lParam)
 {
     if (uMsg == WM_DESTROY)
@@ -103,8 +98,8 @@ MainLoop::MainLoop(unsigned parent_pid, bool download_assets)
         : m_abort(false), m_request_abort(false), m_paused(false),
           m_ticks_adjustment(0), m_parent_pid(parent_pid)
 {
-    m_curr_time       = std::chrono::steady_clock::now();
-    m_prev_time       = std::chrono::steady_clock::now();
+    m_curr_time       = 0;
+    m_prev_time       = 0;
     m_throttle_fps    = true;
     m_allow_large_dt  = false;
     m_frame_before_loading_world = false;
@@ -193,7 +188,7 @@ extern "C" void reset_network_body()
  *  too low (the frame rate too high), the process will sleep to reach the
  *  maximum frame rate.
  */
-double MainLoop::getLimitedDt()
+float MainLoop::getLimitedDt()
 {
     m_prev_time = m_curr_time;
 
@@ -220,6 +215,7 @@ double MainLoop::getLimitedDt()
         resume_mainloop();
     }
 #endif
+    float dt = 0;
 
     // In profile mode without graphics, run with a fixed dt of 1/60
     if ((ProfileWorld::isProfileMode() && GUIEngine::isNoGraphics()) ||
@@ -228,86 +224,118 @@ double MainLoop::getLimitedDt()
         return 1.0f/60.0f;
     }
 
-    m_curr_time = std::chrono::steady_clock::now();
-    if (m_prev_time > m_curr_time)
+    while( 1 )
     {
-        m_prev_time = m_curr_time;
-        // If system time adjusted backwards, return fixed dt and
-        // resynchronize network timer if exists in client
-        if (STKHost::existHost())
-        {
-#ifndef SERVER_ONLY
-            if (UserConfigParams::m_artist_debug_mode &&
-                !GUIEngine::isNoGraphics())
-            {
-                core::stringw err = L"System clock running backwards in"
-                    " networking game.";
-                MessageQueue::add(MessageQueue::MT_ERROR, err);
-            }
-#endif
-            Log::error("MainLoop", "System clock running backwards in"
-                " networking game.");
-            if (STKHost::get()->getNetworkTimerSynchronizer())
-            {
-                STKHost::get()->getNetworkTimerSynchronizer()
-                    ->resynchroniseTimer();
-            }
-        }
-    }
-    double dt = convertToTime(m_curr_time, m_prev_time);
-    // On a server (i.e. without graphics) the frame rate can be under
-    // 1 ms, i.e. dt = 0. Additionally, the resolution of a sleep
-    // statement is not that precise either: if the sleep statement
-    // would be consistent < 1ms, but the stk time would increase by
-    // 1 ms, the stk clock would be desynchronised from real time
-    // (it would go faster), resulting in synchronisation problems
-    // with clients (server time is supposed to be behind client time).
-    // So we play it safe by adding a loop to make sure at least 1ms
-    // (minimum time that can be handled by the integer timer) delay here.
-    while (dt == 0)
-    {
-        StkTime::sleep(1);
-        m_curr_time = std::chrono::steady_clock::now();
+        m_curr_time = StkTime::getMonoTimeMs();
         if (m_prev_time > m_curr_time)
         {
-            Log::error("MainLopp", "System clock keeps backwards!");
             m_prev_time = m_curr_time;
+            // If system time adjusted backwards, return fixed dt and
+            // resynchronize network timer if exists in client
+            if (STKHost::existHost())
+            {
+#ifndef SERVER_ONLY
+                if (UserConfigParams::m_artist_debug_mode &&
+                    !GUIEngine::isNoGraphics())
+                {
+                    core::stringw err = L"System clock running backwards in"
+                        " networking game.";
+                    MessageQueue::add(MessageQueue::MT_ERROR, err);
+                }
+#endif
+                Log::error("MainLoop", "System clock running backwards in"
+                    " networking game.");
+                if (STKHost::get()->getNetworkTimerSynchronizer())
+                {
+                    STKHost::get()->getNetworkTimerSynchronizer()
+                        ->resynchroniseTimer();
+                }
+            }
         }
-        dt = convertToTime(m_curr_time, m_prev_time);
-    }
-
-    const World* const world = World::getWorld();
-    if (UserConfigParams::m_fps_debug && world)
-    {
-        const LinearWorld *lw = dynamic_cast<const LinearWorld*>(world);
-        if (lw)
+        dt = (float)(m_curr_time - m_prev_time);
+        // On a server (i.e. without graphics) the frame rate can be under
+        // 1 ms, i.e. dt = 0. Additionally, the resolution of a sleep
+        // statement is not that precise either: if the sleep statement
+        // would be consistent < 1ms, but the stk time would increase by
+        // 1 ms, the stk clock would be desynchronised from real time
+        // (it would go faster), resulting in synchronisation problems
+        // with clients (server time is supposed to be behind client time).
+        // So we play it safe by adding a loop to make sure at least 1ms
+        // (minimum time that can be handled by the integer timer) delay here.
+        while (dt == 0)
         {
-            Log::verbose("fps", "time %f distance %f dt %f fps %f",
-                         lw->getTime(),
-                         lw->getDistanceDownTrackForKart(0, true),
-                         dt*0.001f, 1000.0f / dt);
+            StkTime::sleep(1);
+            m_curr_time = StkTime::getMonoTimeMs();
+            if (m_prev_time > m_curr_time)
+            {
+                Log::error("MainLopp", "System clock keeps backwards!");
+                m_prev_time = m_curr_time;
+            }
+            dt = (float)(m_curr_time - m_prev_time);
         }
-        else
+
+        const World* const world = World::getWorld();
+        if (UserConfigParams::m_fps_debug && world)
         {
-            Log::verbose("fps", "time %f dt %f fps %f",
-                         world->getTime(), dt*0.001f, 1000.0f / dt);
+            const LinearWorld *lw = dynamic_cast<const LinearWorld*>(world);
+            if (lw)
+            {
+                Log::verbose("fps", "time %f distance %f dt %f fps %f",
+                             lw->getTime(),
+                             lw->getDistanceDownTrackForKart(0, true),
+                             dt*0.001f, 1000.0f / dt);
+            }
+            else
+            {
+                Log::verbose("fps", "time %f dt %f fps %f",
+                             world->getTime(), dt*0.001f, 1000.0f / dt);
+            }
+
         }
 
-    }
+        // Don't allow the game to run slower than a certain amount.
+        // when the computer can't keep it up, slow down the shown time instead
+        // But this can not be done in networking, otherwise the game time on
+        // client and server will not be in synch anymore
+        if ((!NetworkConfig::get()->isNetworking() || !World::getWorld()) &&
+            !m_allow_large_dt)
+        {
+            /* time 3 internal substeps take */
+            const float MAX_ELAPSED_TIME = 3.0f*1.0f / 60.0f*1000.0f;
+            if (dt > MAX_ELAPSED_TIME) dt = MAX_ELAPSED_TIME;
+        }
+        if (!m_throttle_fps || ProfileWorld::isProfileMode()) break;
 
-    // Don't allow the game to run slower than a certain amount.
-    // when the computer can't keep it up, slow down the shown time instead
-    // But this can not be done in networking, otherwise the game time on
-    // client and server will not be in synch anymore
-    if ((!NetworkConfig::get()->isNetworking() || !World::getWorld()) &&
-        !m_allow_large_dt)
-    {
-        /* time 3 internal substeps take */
-        const double MAX_ELAPSED_TIME = 3.0f*1.0f / 60.0f*1000.0f;
-        if (dt > MAX_ELAPSED_TIME) dt = MAX_ELAPSED_TIME;
-    }
+        // Throttle fps if more than maximum, which can reduce
+        // the noise the fan on a graphics card makes.
+        // When in menus, reduce FPS much, it's not necessary to push to the
+        // maximum for plain menus
+#ifdef IOS_STK
+        // For iOS devices most at locked at 60, for new iPad Pro supports 120
+        // which is currently m_max_fps
+        const int max_fps =
+            UserConfigParams::m_swap_interval == 2 ? UserConfigParams::m_max_fps :
+            UserConfigParams::m_swap_interval == 1 ? 60 :
+            30;
+#else
+        const int max_fps = (irr_driver->isRecording() &&
+                             UserConfigParams::m_limit_game_fps )
+                           ? UserConfigParams::m_record_fps 
+                           : UserConfigParams::m_max_fps;
+#endif
+        const int current_fps = (int)(1000.0f / dt);
+        if (!m_throttle_fps || current_fps <= max_fps ||
+            ProfileWorld::isProfileMode()                )  break;
 
-    dt *= 0.001;
+        int wait_time = 1000 / max_fps - 1000 / current_fps;
+        if (wait_time < 1) wait_time = 1;
+
+        PROFILER_PUSH_CPU_MARKER("Throttle framerate", 0, 0, 0);
+        StkTime::sleep(wait_time);
+        PROFILER_POP_CPU_MARKER();
+    }   // while(1)
+
+    dt *= 0.001f;
     return dt;
 }   // getLimitedDt
 
@@ -334,7 +362,7 @@ void MainLoop::updateRace(int ticks, bool fast_forward)
  *  - Determine next time step size (`getLimitedDt`). This takes maximum fps
  *    into account (i.e. sleep if the fps would be too high), and will actually
  *    slow down the in-game clock if the fps are too low (if more than 3/60 of
- *    a second have passed, more than 3 physics time steps would be needed,
+ *    a second have passed, more than 3 physics time steps would be needed, 
  *    and physics do at most 3 time steps).
  *  - if a race is taking place (i.e. not only a menu being shown), call
  *    `updateRace()`, which is a thin wrapper around a call to
@@ -359,7 +387,7 @@ void MainLoop::updateRace(int ticks, bool fast_forward)
  *        heading, local velocity).
  *      - Updates its controller. This is either:
  *        - an AI using `SkiddingController::update()` (which then will
- *          compute the new controls), or
+ *          compute the new controls), or 
  *        - a player controller using `PlayerController::update()`, which will
  *          handle smooth steering (in case of digital input devices steering
  *          is adjusted a bit over time to avoid an instant change from all
@@ -375,7 +403,7 @@ void MainLoop::updateRace(int ticks, bool fast_forward)
  *      special circumstances like rescue, falling).
  *    - Updates all projectiles using the projectile manager. Some of the
  *      projectiles are mostly handled by the physics (e.g. a cake will mainly
- *      check if it's out of bounds), others (like basket ball) do all
+ *      check if it's out of bounds), others (like basket ball) do all 
  *      their aiming and movement here.
  *    - Updates the rewind manager to store rewind states.
  *  - Updates the music manager.
@@ -399,10 +427,10 @@ void MainLoop::updateRace(int ticks, bool fast_forward)
  */
 void MainLoop::run()
 {
-    m_curr_time = std::chrono::steady_clock::now();
+    m_curr_time = StkTime::getMonoTimeMs();
     // DT keeps track of the leftover time, since the race update
     // happens in fixed timesteps
-    double left_over_time = 0;
+    float left_over_time = 0;
 
 #ifdef WIN32
     HANDLE parent = 0;
@@ -455,12 +483,11 @@ void MainLoop::run()
 #endif
 
         PROFILER_PUSH_CPU_MARKER("Main loop", 0xFF, 0x00, 0xF7);
-        TimePoint frame_start = std::chrono::steady_clock::now();
 
         left_over_time += getLimitedDt();
         int num_steps   = stk_config->time2Ticks(left_over_time);
         float dt = stk_config->ticks2Time(1);
-        left_over_time -= num_steps * dt;
+        left_over_time -= num_steps * dt ;
 
         // Shutdown next frame if shutdown request is sent while loading the
         // world
@@ -516,15 +543,6 @@ void MainLoop::run()
             {
                 RaceManager::get()->clearNetworkGrandPrixResult();
                 RaceManager::get()->exitRace();
-            }
-            else if (!exist_host && !GUIEngine::isNoGraphics())
-            {
-                // Avoid leaking widgets (model view especially) when closing
-                // STK, it crashes when vulkan validation is on if closing
-                // during kart selection screen
-                MainMenuScreen* mms = MainMenuScreen::getInstance();
-                if (GUIEngine::getCurrentScreen() != mms)
-                    StateManager::get()->resetAndGoToScreen(mms);
             }
 
             if (exist_host == true)
@@ -649,7 +667,7 @@ void MainLoop::run()
                 // We need to check again because update_race may have requested
                 // the main loop to abort; and it's not a good idea to continue
                 // since the GUI engine is no more to be called then.
-                if (m_abort || m_request_abort)
+                if (m_abort || m_request_abort) 
                     break;
 
                 if (m_frame_before_loading_world)
@@ -658,8 +676,8 @@ void MainLoop::run()
                     // in CutsceneWorld::enterRaceOverState
                     // Reset the timer for correct time for cutscene
                     m_frame_before_loading_world = false;
-                    m_curr_time = std::chrono::steady_clock::now();
-                    left_over_time = 0.0;
+                    m_curr_time = StkTime::getMonoTimeMs();
+                    left_over_time = 0.0f;
                     break;
                 }
 
@@ -679,7 +697,7 @@ void MainLoop::run()
             if (World::getWorld() && RewindManager::isEnabled())
                  RewindManager::get()->handleResetSmoothNetworkBody();
 
-            // Handle controller the last to avoid slow PC sending actions too
+            // Handle controller the last to avoid slow PC sending actions too 
             // late
             if (!GUIEngine::isNoGraphics())
             {
@@ -690,8 +708,8 @@ void MainLoop::run()
                 {
                     // irr_driver->getDevice()->run() loads the world
                     m_frame_before_loading_world = false;
-                    m_curr_time = std::chrono::steady_clock::now();
-                    left_over_time = 0.0;
+                    m_curr_time = StkTime::getMonoTimeMs();
+                    left_over_time = 0.0f;
                 }
 
                 if (abort)
@@ -707,34 +725,6 @@ void MainLoop::run()
                 gp->sendActions();
             }
         }
-
-        if (!UserConfigParams::m_benchmark)
-        {
-            TimePoint frame_end = std::chrono::steady_clock::now();
-            double frame_time = convertToTime(frame_end, frame_start) * 0.001;
-            const double current_fps = 1.0 / frame_time;
-            const double max_fps =
-                (irr_driver->isRecording() && UserConfigParams::m_limit_game_fps) ?
-                UserConfigParams::m_record_fps : UserConfigParams::m_max_fps;
-
-            // Throttle fps if more than maximum, which can reduce
-            // the noise the fan on a graphics card makes.
-            // No need to throttle if vsync is on (m_swap_interval == 1) as
-            // endScene handles fps according to monitor refresh rate
-            if ((UserConfigParams::m_swap_interval == 0 ||
-                GUIEngine::isNoGraphics()) &&
-                m_throttle_fps && !ProfileWorld::isProfileMode() &&
-                current_fps > max_fps)
-            {
-                double wait_time = 1.0 / max_fps - 1.0 / current_fps;
-                std::chrono::nanoseconds wait_time_ns(
-                    (uint64_t)(wait_time * 1000.0 * 1000.0 * 1000.0));
-                PROFILER_PUSH_CPU_MARKER("Throttle framerate", 0, 0, 0);
-                std::this_thread::sleep_for(wait_time_ns);
-                PROFILER_POP_CPU_MARKER();
-            }
-        }
-
         PROFILER_POP_CPU_MARKER();   // MainLoop pop
         PROFILER_SYNC_FRAME();
     }  // while !m_abort
@@ -771,6 +761,33 @@ void MainLoop::renderGUI(int phase, int loop_index, int loop_size)
     irr_driver->getDevice()->setEventReceiver(NULL);
     irr_driver->getDevice()->run();
     irr_driver->getDevice()->setEventReceiver(GUIEngine::EventHandler::get());
+    return;
+    // Rendering past phase 7000 causes the minimap to not work
+    // on higher graphical settings
+    if (phase > 7000)
+    {
+        m_request_abort = !irr_driver->getDevice()->run();
+        return;
+    }
+
+    uint64_t now = StkTime::getMonoTimeMs();
+    float dt = (now - m_curr_time)/1000.0f;
+    
+    if (dt < 1.0 / 30.0f) return;
+
+    m_curr_time = now;
+    
+    // TODO: remove debug output
+    //Log::verbose("mainloop", "Rendergui t %llu dt %f phase %d  index %d / %d",
+    //             now, dt, phase, loop_index, loop_size);
+
+    irr_driver->update(dt, /*is_loading*/true);
+    GUIEngine::update(dt);
+    m_request_abort = !irr_driver->getDevice()->run();
+    
+    //TODO: remove debug output
+    // uint64_t now2 = StkTime::getMonoTimeMs();
+    // Log::verbose("mainloop", "  duration t %llu dt %llu", now, now2-now);
 #endif
 }   // renderGUI
 /* EOF */

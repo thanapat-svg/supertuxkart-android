@@ -476,9 +476,9 @@ std::vector<int> GrandPrixData::getLaps(bool include_locked) const
  *  \param include_locked If data for locked tracks should be included or not.
  *  \return A copy of alist with the reverse status for each track.
  */
-std::vector<uint8_t> GrandPrixData::getReverse(bool include_locked) const
+std::vector<bool> GrandPrixData::getReverse(bool include_locked) const
 {
-    std::vector<uint8_t> reverse;
+    std::vector<bool> reverse;
     for (unsigned int i = 0; i< m_tracks.size(); i++)
         if(isTrackAvailable(m_tracks[i], include_locked))
             reverse.push_back(m_reversed[i]);

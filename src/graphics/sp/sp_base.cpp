@@ -28,9 +28,9 @@
 #include "graphics/shared_gpu_objects.hpp"
 #include "graphics/shader_based_renderer.hpp"
 #include "graphics/post_processing.hpp"
+#include <ge_render_info.hpp>
 #include "graphics/rtts.hpp"
 #include "graphics/shaders.hpp"
-#include "graphics/skybox.hpp"
 #include "graphics/sp/sp_dynamic_draw_call.hpp"
 #include "graphics/sp/sp_instanced_data.hpp"
 #include "graphics/sp/sp_per_object_uniform.hpp"
@@ -45,51 +45,20 @@
 #include "guiengine/engine.hpp"
 #include "tracks/track.hpp"
 #include "utils/log.hpp"
+#include "utils/helpers.hpp"
 #include "utils/profiler.hpp"
 #include "utils/string_utils.hpp"
 
 #include <algorithm>
 #include <array>
 #include <cassert>
-#include <functional>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
 #include <ge_main.hpp>
-#include <ge_render_info.hpp>
-
-#include <IrrlichtDevice.h>
-
 using namespace GE;
-
-#undef MEASURE_CULLING
-#ifdef MEASURE_CULLING
-namespace
-{
-    struct CullingStats
-    {
-        int meshbuffers_treated = 0;
-        int meshbuffers_discarded = 0;
-        int meshbuffers_kept_for_camera = 0;
-        int meshbuffers_kept_for_shadows = 0;
-        int meshbuffers_kept_for_shadows_only = 0;
-    
-        void reset()
-        {
-            meshbuffers_treated = 0;
-            meshbuffers_discarded = 0;
-            meshbuffers_kept_for_camera = 0;
-            meshbuffers_kept_for_shadows = 0;
-            meshbuffers_kept_for_shadows_only = 0;
-        }
-    };
-
-// Only available in this file
-CullingStats culling_stats;
-}
-#endif
 
 namespace SP
 {
@@ -106,8 +75,6 @@ bool sp_apitrace = false;
 bool sp_debug_view = false;
 // ----------------------------------------------------------------------------
 bool g_handle_shadow = false;
-// ----------------------------------------------------------------------------
-bool discard_mesh[5];
 // ----------------------------------------------------------------------------
 SPShader* g_normal_visualizer = NULL;
 // ----------------------------------------------------------------------------
@@ -128,7 +95,7 @@ std::unordered_map<unsigned, std::pair<core::vector3df,
 // ----------------------------------------------------------------------------
 std::unordered_set<SPMeshBuffer*> g_instances;
 // ----------------------------------------------------------------------------
-std::array<GLuint, ST_COUNT> g_samplers = {{ }};
+std::array<GLuint, ST_COUNT> g_samplers;
 // ----------------------------------------------------------------------------
 // Check sp_shader.cpp for the name
 std::array<GLuint, 1> sp_prefilled_tex;
@@ -152,8 +119,6 @@ unsigned sp_cur_buf_id[MAX_PLAYER_COUNT] = {};
 unsigned g_skinning_offset = 0;
 // ----------------------------------------------------------------------------
 std::vector<SPMeshNode*> g_skinning_mesh;
-// ----------------------------------------------------------------------------
-bool g_skinning_use_tbo = false;
 // ----------------------------------------------------------------------------
 int sp_cur_shadow_cascade = 0;
 // ----------------------------------------------------------------------------
@@ -180,14 +145,43 @@ ShaderBasedRenderer* getRenderer()
 }   // getRenderer
 
 // ----------------------------------------------------------------------------
+void displaceUniformAssigner(SP::SPUniformAssigner* ua)
+{
+    static std::array<float, 4> g_direction = {{ 0, 0, 0, 0 }};
+    if (!Track::getCurrentTrack())
+    {
+        ua->setValue(g_direction);
+        return;
+    }
+    const float time = irr_driver->getDevice()->getTimer()->getTime() /
+        1000.0f;
+    const float speed = Track::getCurrentTrack()->getDisplacementSpeed();
+
+    float strength = time;
+    strength = fabsf(noise2d(strength / 10.0f)) * 0.006f + 0.002f;
+
+    core::vector3df wind = irr_driver->getWind() * strength * speed;
+    g_direction[0] += wind.X;
+    g_direction[1] += wind.Z;
+
+    strength = time * 0.56f + sinf(time);
+    strength = fabsf(noise2d(0.0, strength / 6.0f)) * 0.0095f + 0.0025f;
+
+    wind = irr_driver->getWind() * strength * speed;
+    wind.rotateXZBy(cosf(time));
+    g_direction[2] += wind.X;
+    g_direction[3] += wind.Z;
+    ua->setValue(g_direction);
+}   // displaceUniformAssigner
+
+// ----------------------------------------------------------------------------
 void displaceShaderInit(SPShader* shader)
 {
     shader->addShaderFile("sp_pass.vert", GL_VERTEX_SHADER, RP_1ST);
-    shader->addShaderFile("sp_displace_ssr.frag", GL_FRAGMENT_SHADER, RP_1ST);
+    shader->addShaderFile("white.frag", GL_FRAGMENT_SHADER, RP_1ST);
     shader->linkShaderFiles(RP_1ST);
     shader->use(RP_1ST);
     shader->addBasicUniforms(RP_1ST);
-    shader->addAllUniforms(RP_1ST);
     shader->setUseFunction([]()->void
         {
             assert(g_stk_sbr->getRTTs() != NULL);
@@ -199,24 +193,8 @@ void displaceShaderInit(SPShader* shader)
             glEnable(GL_STENCIL_TEST);
             glStencilFunc(GL_ALWAYS, 1, 0xFF);
             glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
-            g_stk_sbr->getRTTs()->getFBO(FBO_DISPLACE_SSR).bind(),
+            g_stk_sbr->getRTTs()->getFBO(FBO_RGBA_1).bind(),
             glClear(GL_COLOR_BUFFER_BIT);
-        }, RP_1ST);
-    shader->addCustomPrefilledTextures(ST_BILINEAR,
-        GL_TEXTURE_2D, "u_displace_color", []()->GLuint
-        {
-            return g_stk_sbr->getRTTs()->getFBO(FBO_COLORS).getRTT()[0];
-        }, RP_1ST);
-    shader->addCustomPrefilledTextures(ST_SHADOW,
-        GL_TEXTURE_2D, "u_depth", []()->GLuint
-        {
-            return g_stk_sbr->getRTTs()->getDepthStencilTexture();
-        }, RP_1ST);
-    shader->addCustomPrefilledTextures(ST_TRILINEAR_CLAMPED,
-        GL_TEXTURE_CUBE_MAP, "u_skybox_texture", []()->GLuint
-        {
-            return g_stk_sbr->getSkybox() ?
-                g_stk_sbr->getSkybox()->getCubeMap() : 0;
         }, RP_1ST);
     shader->addShaderFile("sp_pass.vert", GL_VERTEX_SHADER, RP_RESERVED);
     shader->addShaderFile("sp_displace.frag", GL_FRAGMENT_SHADER, RP_RESERVED);
@@ -242,20 +220,12 @@ void displaceShaderInit(SPShader* shader)
     shader->addCustomPrefilledTextures(ST_BILINEAR,
         GL_TEXTURE_2D, "mask_tex", []()->GLuint
         {
-            return g_stk_sbr->getRTTs()->getFBO(FBO_DISPLACE_SSR).getRTT()[0];
+            return g_stk_sbr->getRTTs()->getFBO(FBO_RGBA_1).getRTT()[0];
         }, RP_RESERVED);
     shader->addCustomPrefilledTextures(ST_BILINEAR,
         GL_TEXTURE_2D, "color_tex", []()->GLuint
         {
             return g_stk_sbr->getRTTs()->getFBO(FBO_COLORS).getRTT()[0];
-        }, RP_RESERVED);
-    shader->addCustomPrefilledTextures(ST_BILINEAR,
-        GL_TEXTURE_2D, "ssr_tex", []()->GLuint
-        {
-            auto& r = g_stk_sbr->getRTTs()->getFBO(FBO_DISPLACE_SSR).getRTT();
-            if (r.size() > 1)
-                return r[1];
-            return 0;
         }, RP_RESERVED);
     shader->addAllTextures(RP_RESERVED);
     shader->setUnuseFunction([]()->void
@@ -269,16 +239,7 @@ void displaceShaderInit(SPShader* shader)
             glDisable(GL_STENCIL_TEST);
         }, RP_RESERVED);
     static_cast<SPPerObjectUniform*>(shader)
-        ->addAssignerFunction("direction", [](SP::SPUniformAssigner* ua)->void
-        {
-            ua->setValue(GE::getDisplaceDirection());
-        });
-    static_cast<SPPerObjectUniform*>(shader)
-        ->addAssignerFunction("u_ssr", [](SP::SPUniformAssigner* ua)->void
-        {
-            ua->setValue(GE::getGEConfig()->m_screen_space_reflection_type !=
-                GE::GSSRT_DISABLED ? 1 : 0);
-        });
+        ->addAssignerFunction("direction", displaceUniformAssigner);
 }   // displaceShaderInit
 
 // ----------------------------------------------------------------------------
@@ -287,7 +248,9 @@ void resizeSkinning(unsigned number)
     const irr::core::matrix4 m;
     g_skinning_size = number;
 
-    if (!skinningUseTBO())
+
+
+    if (!CVS->isARBTextureBufferObjectUsable())
     {
         glBindTexture(GL_TEXTURE_2D, g_skinning_tex);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, 4, number, 0, GL_RGBA,
@@ -310,8 +273,7 @@ void resizeSkinning(unsigned number)
             g_joint_ptr = (std::array<float, 16>*)glMapBufferRange(
                 GL_TEXTURE_BUFFER, 0, 64,
                 GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT);
-            if (g_joint_ptr)
-                memcpy(g_joint_ptr, m.pointer(), 64);
+            memcpy(g_joint_ptr, m.pointer(), 64);
             glUnmapBuffer(GL_TEXTURE_BUFFER);
             g_joint_ptr = (std::array<float, 16>*)glMapBufferRange(
                 GL_TEXTURE_BUFFER, 64, (number - 1) << 6,
@@ -337,7 +299,7 @@ void initSkinning()
 
     int max_size = 0;
 
-    if (!skinningUseTBO())
+    if (!CVS->isARBTextureBufferObjectUsable())
     {
         glGetIntegerv(GL_MAX_TEXTURE_SIZE, &max_size);
     
@@ -354,13 +316,12 @@ void initSkinning()
     else
     {
 #ifndef USE_GLES2
-        int skinning_tbo_limit;
-        glGetIntegerv(GL_MAX_TEXTURE_BUFFER_SIZE, &skinning_tbo_limit);
-        if (stk_config->m_max_skinning_bones << 6 > (unsigned)skinning_tbo_limit)
+        glGetIntegerv(GL_MAX_TEXTURE_BUFFER_SIZE, &max_size);
+        if (stk_config->m_max_skinning_bones << 6 > (unsigned)max_size)
         {
             Log::warn("SharedGPUObjects", "Too many bones for skinning, max: %d",
-                      skinning_tbo_limit >> 6);
-            stk_config->m_max_skinning_bones = skinning_tbo_limit >> 6;
+                      max_size >> 6);
+            stk_config->m_max_skinning_bones = max_size >> 6;
         }
         Log::info("SharedGPUObjects", "Hardware Skinning enabled, method: TBO, "
                   "max bones: %u", stk_config->m_max_skinning_bones);
@@ -373,7 +334,7 @@ void initSkinning()
     const irr::core::matrix4 m;
     glGenTextures(1, &g_skinning_tex);
 #ifndef USE_GLES2
-    if (skinningUseTBO())
+    if (CVS->isARBTextureBufferObjectUsable())
     {
         glGenBuffers(1, &g_skinning_buf);
     }
@@ -478,17 +439,6 @@ void init()
         return;
     }
 
-    if (CVS->isARBTextureBufferObjectUsable())
-    {
-        int skinning_tbo_limit;
-        glGetIntegerv(GL_MAX_TEXTURE_BUFFER_SIZE_ARB, &skinning_tbo_limit);
-        g_skinning_use_tbo = (unsigned)skinning_tbo_limit >= stk_config->m_max_skinning_bones << 6;
-    }
-    else
-    {
-        g_skinning_use_tbo = false;
-    }
-
     initSkinning();
     for (unsigned i = 0; i < MAX_PLAYER_COUNT; i++)
     {
@@ -506,18 +456,6 @@ void init()
     glBindBufferBase(GL_UNIFORM_BUFFER, 2, sp_fog_ubo);
 
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
-    initSamplers();
-}   // init
-
-// ----------------------------------------------------------------------------
-void initSamplers()
-{
-    if (std::all_of(g_samplers.begin(), g_samplers.end() - 1,
-        [](int value) { return value != 0; }))
-    {
-        glDeleteSamplers((unsigned)g_samplers.size() - 1, g_samplers.data());
-        g_samplers.fill(0);
-    }
 
     for (unsigned st = ST_NEAREST; st < ST_COUNT; st++)
     {
@@ -582,7 +520,6 @@ void initSamplers()
                     GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
                 glSamplerParameteri(id, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
                 glSamplerParameteri(id, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-                glSamplerParameteri(id, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
                 if (CVS->isEXTTextureFilterAnisotropicUsable())
                 {
                     int aniso = UserConfigParams::m_anisotropic;
@@ -652,7 +589,7 @@ void initSamplers()
                 break;
         }
     }
-}   // initSamplers
+}   // init
 
 // ----------------------------------------------------------------------------
 void destroy()
@@ -665,7 +602,7 @@ void destroy()
     SPTextureManager::destroy();
 
 #ifndef USE_GLES2
-    if (skinningUseTBO() &&
+    if (CVS->isARBTextureBufferObjectUsable() && 
         CVS->isARBBufferStorageUsable())
     {
         glBindBuffer(GL_TEXTURE_BUFFER, g_skinning_buf);
@@ -685,7 +622,7 @@ void destroy()
     }
     glDeleteBuffers(1, &sp_fog_ubo);
     glDeleteSamplers((unsigned)g_samplers.size() - 1, g_samplers.data());
-    g_samplers.fill(0);
+
 }   // destroy
 
 // ----------------------------------------------------------------------------
@@ -706,12 +643,6 @@ SPShader* getNormalVisualizer()
 {
     return g_normal_visualizer;
 }   // getNormalVisualizer
-
-// ----------------------------------------------------------------------------
-bool skinningUseTBO()
-{
-    return g_skinning_use_tbo;
-}
 
 
 // ----------------------------------------------------------------------------
@@ -761,23 +692,6 @@ void addEdgeForViz(const core::vector3df& p0, const core::vector3df& p1)
 }   // addEdgeForViz
 
 // ----------------------------------------------------------------------------
-void addBoundingBoxEdgesForViz(const core::aabbox3df &bb)
-{
-    addEdgeForViz(getCorner(bb, 0), getCorner(bb, 1));
-    addEdgeForViz(getCorner(bb, 1), getCorner(bb, 5));
-    addEdgeForViz(getCorner(bb, 5), getCorner(bb, 4));
-    addEdgeForViz(getCorner(bb, 4), getCorner(bb, 0));
-    addEdgeForViz(getCorner(bb, 2), getCorner(bb, 3));
-    addEdgeForViz(getCorner(bb, 3), getCorner(bb, 7));
-    addEdgeForViz(getCorner(bb, 7), getCorner(bb, 6));
-    addEdgeForViz(getCorner(bb, 6), getCorner(bb, 2));
-    addEdgeForViz(getCorner(bb, 0), getCorner(bb, 2));
-    addEdgeForViz(getCorner(bb, 1), getCorner(bb, 3));
-    addEdgeForViz(getCorner(bb, 5), getCorner(bb, 7));
-    addEdgeForViz(getCorner(bb, 4), getCorner(bb, 6));
-}   // addBoundingBoxEdgesForViz
-
-// ----------------------------------------------------------------------------
 void prepareDrawCalls()
 {
     if (!sp_culling)
@@ -818,111 +732,85 @@ void prepareDrawCalls()
     }
     g_glow_meshes.clear();
     g_instances.clear();
-}   // prepareDrawCalls
-
-// ----------------------------------------------------------------------------
-/* Helper function for addObject and handleDynamicDrawCalls.
-   discard_mesh is defined at a higher level, so there is no scope issue
-   in writing it here and having its results read later in the parent functions. */
-static inline bool computeBoundingBoxCulling(const core::aabbox3df& bb, int dc_count)
-{
-    assert(dc_count == 1 || dc_count == 5);
-
-#ifdef MEASURE_CULLING
-    culling_stats.meshbuffers_treated++;
-#endif
-
-    // Reset all discard values to false before use
-    std::memset(discard_mesh, 0, sizeof(discard_mesh));
-
-    for (int dc_type = 0; dc_type < dc_count; dc_type++)
-    {
-        const float* frustum_plane = g_frustums[dc_type];
-        for (int i = 0; i < 24; i += 4)
-        {
-            // The frustum is delimited by 6 planes, and we check
-            // each plane to see if at least one corner of the
-            // bounding box is on the side of the plane in 3D-space
-            // that would match the bounding box intersecting with
-            // the frustum.
-            // 
-            // For each plane, we can simply reconstruct a corner
-            // that will sit on the "inside" side of 3D-space if
-            // any of the corners do.
-            const float optimal_corner_x =
-                (frustum_plane[i] > 0.0f)   ? bb.MaxEdge.X : bb.MinEdge.X;
-            const float optimal_corner_y =
-                (frustum_plane[i+1] > 0.0f) ? bb.MaxEdge.Y : bb.MinEdge.Y;
-            const float optimal_corner_z =
-                (frustum_plane[i+2] > 0.0f) ? bb.MaxEdge.Z : bb.MinEdge.Z;
-
-            const bool outside = (optimal_corner_x * frustum_plane[i] +
-                                  optimal_corner_y * frustum_plane[i+1] +
-                                  optimal_corner_z * frustum_plane[i+2] +
-                                  frustum_plane[i+3]) < 0.0f;
-
-            if (outside)
-            {
-                discard_mesh[dc_type] = true;
-                break;
-            }
-        }
-    }
-
-    bool shadows_discard = (dc_count == 5) && discard_mesh[1] && discard_mesh[2] &&
-                           discard_mesh[3] && discard_mesh[4];
-
-#ifdef MEASURE_CULLING
-    if (!discard_mesh[0])
-        culling_stats.meshbuffers_kept_for_camera++;
-    if ((dc_count == 5) && !shadows_discard)
-    {
-        culling_stats.meshbuffers_kept_for_shadows++;
-        if (discard_mesh[0])
-            culling_stats.meshbuffers_kept_for_shadows_only++;
-    }
-#endif
-
-    if (discard_mesh[0] && (dc_count == 1 || shadows_discard))
-    {
-#ifdef MEASURE_CULLING
-        culling_stats.meshbuffers_discarded++;
-#endif
-        return true;
-    }
-    return false;
-}   // computeBoundingBoxCulling
+}
 
 // ----------------------------------------------------------------------------
 void addObject(SPMeshNode* node)
 {
-    if (!sp_culling || node->getSPM() == NULL)
+    if (!sp_culling)
+    {
         return;
+    }
+
+    if (node->getSPM() == NULL)
+    {
+        return;
+    }
 
     const core::matrix4& model_matrix = node->getAbsoluteTransformation();
     bool added_for_skinning = false;
-
     for (unsigned m = 0; m < node->getSPM()->getMeshBufferCount(); m++)
     {
         SPMeshBuffer* mb = node->getSPM()->getSPMeshBuffer(m);
         SPShader* shader = node->getShader(m);
         if (shader == NULL)
+        {
             continue;
-
-        // We get a bounding box oriented with the XYZ axes
-        // to be able to cheaply test culling afterwards
+        }
         core::aabbox3df bb = mb->getBoundingBox();
         model_matrix.transformBoxEx(bb);
+        std::vector<bool> discard;
         const bool handle_shadow = node->isInShadowPass() &&
             g_handle_shadow && shader->hasShader(RP_SHADOW);
-        // The function also computes per-frustum data (discard_mesh) we use later
-        bool cull = computeBoundingBoxCulling(bb, (handle_shadow ? 5 : 1));
+        discard.resize((handle_shadow ? 5 : 1), false);
 
-        if (cull)
+        for (int dc_type = 0; dc_type < (handle_shadow ? 5 : 1); dc_type++)
+        {
+            for (int i = 0; i < 24; i += 4)
+            {
+                bool outside = true;
+                for (int j = 0; j < 8; j++)
+                {
+                    const float dist =
+                        getCorner(bb, j).X * g_frustums[dc_type][i] +
+                        getCorner(bb, j).Y * g_frustums[dc_type][i + 1] +
+                        getCorner(bb, j).Z * g_frustums[dc_type][i + 2] +
+                        g_frustums[dc_type][i + 3];
+                    outside = outside && dist < 0.0f;
+                    if (!outside)
+                    {
+                        break;
+                    }
+                }
+                if (outside)
+                {
+                    discard[dc_type] = true;
+                    break;
+                }
+            }
+        }
+        if (handle_shadow ?
+            (discard[0] && discard[1] && discard[2] && discard[3] &&
+            discard[4]) : discard[0])
+        {
             continue;
+        }
 
         if (irr_driver->getBoundingBoxesViz())
-            addBoundingBoxEdgesForViz(bb);
+        {
+            addEdgeForViz(getCorner(bb, 0), getCorner(bb, 1));
+            addEdgeForViz(getCorner(bb, 1), getCorner(bb, 5));
+            addEdgeForViz(getCorner(bb, 5), getCorner(bb, 4));
+            addEdgeForViz(getCorner(bb, 4), getCorner(bb, 0));
+            addEdgeForViz(getCorner(bb, 2), getCorner(bb, 3));
+            addEdgeForViz(getCorner(bb, 3), getCorner(bb, 7));
+            addEdgeForViz(getCorner(bb, 7), getCorner(bb, 6));
+            addEdgeForViz(getCorner(bb, 6), getCorner(bb, 2));
+            addEdgeForViz(getCorner(bb, 0), getCorner(bb, 2));
+            addEdgeForViz(getCorner(bb, 1), getCorner(bb, 3));
+            addEdgeForViz(getCorner(bb, 5), getCorner(bb, 7));
+            addEdgeForViz(getCorner(bb, 4), getCorner(bb, 6));
+        }
 
         mb->uploadGLMesh();
         // For first frame only need the vbo to be initialized
@@ -951,14 +839,18 @@ void addObject(SPMeshNode* node)
 
         for (int dc_type = 0; dc_type < (handle_shadow ? 5 : 1); dc_type++)
         {
-            if (discard_mesh[dc_type])
+            if (discard[dc_type])
+            {
                 continue;
-
+            }
             if (dc_type == 0)
+            {
                 sp_solid_poly_count += mb->getIndexCount() / 3;
+            }
             else
+            {
                 sp_shadow_poly_count += mb->getIndexCount() / 3;
-
+            }
             if (shader->isTransparent())
             {
                 // Transparent shader should always uses mesh samplers
@@ -1014,7 +906,7 @@ void addObject(SPMeshNode* node)
             g_instances.insert(mb);
         }
     }
-}   // addObject
+}
 
 // ----------------------------------------------------------------------------
 void handleDynamicDrawCall()
@@ -1037,26 +929,72 @@ void handleDynamicDrawCall()
         SPShader* shader = dydc->getShader();
         core::aabbox3df bb = dydc->getBoundingBox();
         dydc->getAbsoluteTransformation().transformBoxEx(bb);
+        std::vector<bool> discard;
         const bool handle_shadow =
             g_handle_shadow && shader->hasShader(RP_SHADOW);
-        bool cull = computeBoundingBoxCulling(bb, (handle_shadow ? 5 : 1));
-
-        if (cull)
+        discard.resize((handle_shadow ? 5 : 1), false);
+        for (int dc_type = 0; dc_type < (handle_shadow ? 5 : 1); dc_type++)
+        {
+            for (int i = 0; i < 24; i += 4)
+            {
+                bool outside = true;
+                for (int j = 0; j < 8; j++)
+                {
+                    const float dist =
+                        getCorner(bb, j).X * g_frustums[dc_type][i] +
+                        getCorner(bb, j).Y * g_frustums[dc_type][i + 1] +
+                        getCorner(bb, j).Z * g_frustums[dc_type][i + 2] +
+                        g_frustums[dc_type][i + 3];
+                    outside = outside && dist < 0.0f;
+                    if (!outside)
+                    {
+                        break;
+                    }
+                }
+                if (outside)
+                {
+                    discard[dc_type] = true;
+                    break;
+                }
+            }
+        }
+        if (handle_shadow ?
+            (discard[0] && discard[1] && discard[2] && discard[3] &&
+            discard[4]) : discard[0])
+        {
             continue;
+        }
 
         if (irr_driver->getBoundingBoxesViz())
-            addBoundingBoxEdgesForViz(bb);
+        {
+            addEdgeForViz(getCorner(bb, 0), getCorner(bb, 1));
+            addEdgeForViz(getCorner(bb, 1), getCorner(bb, 5));
+            addEdgeForViz(getCorner(bb, 5), getCorner(bb, 4));
+            addEdgeForViz(getCorner(bb, 4), getCorner(bb, 0));
+            addEdgeForViz(getCorner(bb, 2), getCorner(bb, 3));
+            addEdgeForViz(getCorner(bb, 3), getCorner(bb, 7));
+            addEdgeForViz(getCorner(bb, 7), getCorner(bb, 6));
+            addEdgeForViz(getCorner(bb, 6), getCorner(bb, 2));
+            addEdgeForViz(getCorner(bb, 0), getCorner(bb, 2));
+            addEdgeForViz(getCorner(bb, 1), getCorner(bb, 3));
+            addEdgeForViz(getCorner(bb, 5), getCorner(bb, 7));
+            addEdgeForViz(getCorner(bb, 4), getCorner(bb, 6));
+        }
 
         for (int dc_type = 0; dc_type < (handle_shadow ? 5 : 1); dc_type++)
         {
-            if (discard_mesh[dc_type])
+            if (discard[dc_type])
+            {
                 continue;
-
+            }
             if (dc_type == 0)
+            {
                 sp_solid_poly_count += dydc->getVertexCount();
+            }
             else
+            {
                 sp_shadow_poly_count += dydc->getVertexCount();
-
+            }
             if (shader->isTransparent())
             {
                 // Transparent shader should always uses mesh samplers
@@ -1095,7 +1033,7 @@ void handleDynamicDrawCall()
             }
         }
     }
-}   // handleDynamicDrawCalls
+}
 
 // ----------------------------------------------------------------------------
 void updateModelMatrix()
@@ -1138,8 +1076,9 @@ void updateModelMatrix()
             for (auto& q : p.second)
             {
                 if (q.second.empty())
+                {
                     continue;
-
+                }
                 std::array<GLuint, 6> texture_names =
                     {{ 0, 0, 0, 0, 0, 0 }};
                 int material_id =
@@ -1185,7 +1124,7 @@ void uploadSkinningMatrices()
 
     unsigned buffer_offset = 0;
 #ifndef USE_GLES2
-    if (skinningUseTBO() &&
+    if (CVS->isARBTextureBufferObjectUsable() && 
         !CVS->isARBBufferStorageUsable())
     {
         glBindBuffer(GL_TEXTURE_BUFFER, g_skinning_buf);
@@ -1196,27 +1135,24 @@ void uploadSkinningMatrices()
     }
 #endif
 
-    if (g_joint_ptr)
+    for (unsigned i = 0; i < g_skinning_mesh.size(); i++)
     {
-        for (unsigned i = 0; i < g_skinning_mesh.size(); i++)
-        {
-            memcpy(g_joint_ptr + buffer_offset,
-                g_skinning_mesh[i]->getSkinningMatrices(),
-                g_skinning_mesh[i]->getTotalJoints() * 64);
-            buffer_offset += g_skinning_mesh[i]->getTotalJoints();
-        }
-    
-        if (!skinningUseTBO())
-        {
-            glBindTexture(GL_TEXTURE_2D, g_skinning_tex);
-            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 1, 4, buffer_offset, GL_RGBA,
-                GL_FLOAT, g_joint_ptr);
-            glBindTexture(GL_TEXTURE_2D, 0);
-        }
+        memcpy(g_joint_ptr + buffer_offset,
+            g_skinning_mesh[i]->getSkinningMatrices(),
+            g_skinning_mesh[i]->getTotalJoints() * 64);
+        buffer_offset += g_skinning_mesh[i]->getTotalJoints();
+    }
+
+    if (!CVS->isARBTextureBufferObjectUsable())
+    {
+        glBindTexture(GL_TEXTURE_2D, g_skinning_tex);
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 1, 4, buffer_offset, GL_RGBA,
+            GL_FLOAT, g_joint_ptr);
+        glBindTexture(GL_TEXTURE_2D, 0);
     }
     
 #ifndef USE_GLES2
-    if (skinningUseTBO() &&
+    if (CVS->isARBTextureBufferObjectUsable() && 
         !CVS->isARBBufferStorageUsable())
     {
         glUnmapBuffer(GL_TEXTURE_BUFFER);
@@ -1251,17 +1187,6 @@ void uploadAll()
         {
             return dc->isRemoving();
         }), g_dy_dc.end());
-
-#ifdef MEASURE_CULLING
-    Log::info("CullingStats", "%i objects treated, %i discarded, %i kept for camera, "
-        "%i kept for shadows, %i kept for shadows only",
-        culling_stats.meshbuffers_treated,
-        culling_stats.meshbuffers_discarded,
-        culling_stats.meshbuffers_kept_for_camera,
-        culling_stats.meshbuffers_kept_for_shadows,
-        culling_stats.meshbuffers_kept_for_shadows_only);
-    culling_stats.reset();
-#endif
 }
 
 // ----------------------------------------------------------------------------
@@ -1334,7 +1259,7 @@ void drawGlow()
 void draw(RenderPass rp, DrawCallType dct)
 {
     std::stringstream profiler_name;
-    profiler_name << "--- SP::Draw " << dct << " with " << rp;
+    profiler_name << "SP::Draw " << dct << " with " << rp;
     PROFILER_PUSH_CPU_MARKER(profiler_name.str().c_str(),
         (uint8_t)(float(dct + rp + 2) / float(DCT_FOR_VAO + RP_COUNT) * 255.0f),
         (uint8_t)(float(dct + 1) / (float)DCT_FOR_VAO * 255.0f) ,
@@ -1363,17 +1288,6 @@ void draw(RenderPass rp, DrawCallType dct)
                     (p.second[j].second[k].first), &draw_call_uniforms, rp);
                 p.second[j].second[k].first->draw(dct,
                     p.second[j].second[k].second/*material_id*/);
-                if (p.first->getName().rfind("ghost", 0) == 0)
-                {
-                    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-                    glEnable(GL_BLEND);
-                    glBlendEquation(GL_FUNC_ADD);
-                    glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-                    glDepthMask(GL_FALSE);
-                    p.second[j].second[k].first->draw(dct,
-                        p.second[j].second[k].second/*material_id*/);
-                    p.first->use(rp);
-                }
                 for (SPUniformAssigner* ua : draw_call_uniforms)
                 {
                     ua->reset();

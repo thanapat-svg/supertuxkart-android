@@ -15,7 +15,7 @@
 //  along with this program; if not, write to the Free Software
 //  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
-#ifndef SERVER_ONLY // No GUI files in server builds
+
 #ifndef __HEADER_OPTIONS_SCREEN_VIDEO_HPP__
 #define __HEADER_OPTIONS_SCREEN_VIDEO_HPP__
 
@@ -25,6 +25,63 @@
 
 namespace GUIEngine { class Widget; }
 
+struct GFXPreset
+{
+    bool lights;
+    int shadows;
+    bool bloom;
+    bool lightshaft;
+    bool glow;
+    bool mlaa;
+    bool ssao;
+    bool light_scatter;
+    bool animatedCharacters;
+    int particles;
+    int image_quality;
+    bool degraded_ibl;
+};
+
+struct BlurPreset
+{
+    bool motionblur;
+    /** Depth of field */
+    bool dof;
+};
+
+struct ScaleRttsCustomPreset
+{
+    float value;
+};
+
+struct Resolution
+{
+    int width; 
+    int height;
+    bool fullscreen;
+
+    Resolution()
+    {
+        width = 0;
+        height = 0;
+    }
+
+    Resolution(int w, int h)
+    {
+        width = w;
+        height = h;
+    }
+
+    bool operator< (Resolution r) const
+    {
+        return width < r.width || (width == r.width && height < r.height);
+    }
+
+    float getRatio() const
+    {
+        return (float) width / height;
+    }
+};
+
 /**
   * \brief Graphics options screen
   * \ingroup states_screens
@@ -32,15 +89,21 @@ namespace GUIEngine { class Widget; }
 class OptionsScreenVideo : public GUIEngine::Screen, public GUIEngine::ScreenSingleton<OptionsScreenVideo>
 {
 private:
+    static bool m_fullscreen_checkbox_focus;
     bool m_prev_adv_pipline;
+    int m_prev_img_quality;
     OptionsScreenVideo();
     bool m_inited;
+    std::vector<GFXPreset> m_presets;
+    std::vector<BlurPreset> m_blur_presets;
+    std::vector<ScaleRttsCustomPreset> m_scale_rtts_custom_presets;
+    std::vector<Resolution> m_resolutions;
 
     void updateTooltip();
     void updateBlurTooltip();
+    void updateResolutionsList();
+    void initPresets();
     static void onScrollResolutionsList(void* data);
-    /* Returns 1 or 2 if a restart will be done, 0 otherwise */
-    int applySettings();
 public:
     friend class GUIEngine::ScreenSingleton<OptionsScreenVideo>;
 
@@ -57,16 +120,16 @@ public:
     /** \brief implement callback from parent class GUIEngine::Screen */
     virtual void tearDown() OVERRIDE;
 
-    virtual bool onEscapePressed() OVERRIDE;
+    /** \brief implement optional callback from parent class GUIEngine::Screen */
+    virtual void unloaded() OVERRIDE;
 
-    virtual void onResize() OVERRIDE;
+    virtual bool onEscapePressed() OVERRIDE;
 
     void         updateGfxSlider();
     void         updateBlurSlider();
     void         updateScaleRTTsSlider();
-    static void updateImageQuality(bool force_reload_texture);
-    static void setSSR();
+    static int getImageQuality();
+    static void setImageQuality(int quality);
 };
 
 #endif
-#endif // ifndef SERVER_ONLY

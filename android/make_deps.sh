@@ -1,5 +1,5 @@
 #!/bin/sh
-# Tested with NDK 28.1.13356709
+# Tested with NDK 22.1.7171670
 
 export DIRNAME=$(realpath "$(dirname "$0")")
 
@@ -16,9 +16,6 @@ export HOST_X86=i686-linux-android
 
 export ARCH_X86_64=x86_64
 export HOST_X86_64=x86_64-linux-android
-
-# For cmake 4.0 until stk dependencies are updated
-export CMAKE_POLICY_VERSION_MINIMUM=3.5
 
 # A helper function that checks if error ocurred
 check_error()
@@ -43,7 +40,7 @@ if [ -z "$NDK_PATH" ]; then
 fi
 
 if [ -z "$STK_NDK_VERSION" ]; then
-    export STK_NDK_VERSION="28.1.13356709"
+    export STK_NDK_VERSION=23.1.7779620
 fi
 
 NDK_PATH="$(realpath "$NDK_PATH")/${STK_NDK_VERSION}"
@@ -65,7 +62,7 @@ build_deps()
         ARCH_OPTION="armeabi-v7a"
         export ARCH=$ARCH_ARMV7
         # Special case
-        export HOST=armv7a-linux-androideabi21
+        export HOST=armv7a-linux-androideabi16
         export HOST_DIR=$HOST_ARMV7
     elif [ "$ARCH_OPTION" = "aarch64" ]; then
         ARCH_OPTION="arm64-v8a"
@@ -75,7 +72,7 @@ build_deps()
     elif [ "$ARCH_OPTION" = "x86" ]; then
         export ARCH=$ARCH_X86
         export HOST_DIR=$HOST_X86
-        export HOST="${HOST_DIR}21"
+        export HOST="${HOST_DIR}16"
     elif [ "$ARCH_OPTION" = "x86_64" ]; then
         export ARCH=$ARCH_X86_64
         export HOST_DIR=$HOST_X86_64
@@ -94,7 +91,7 @@ build_deps()
 
         cd "$DIRNAME/deps-$ARCH_OPTION/zlib"
         cmake . -DCMAKE_TOOLCHAIN_FILE=../../../cmake/Toolchain-android.cmake \
-                -DHOST=$HOST -DARCH=$ARCH -DCMAKE_C_FLAGS=" -Wl,--undefined-version -fpic -O3 -g" &&
+                -DHOST=$HOST -DARCH=$ARCH -DCMAKE_C_FLAGS="-fpic -O3 -g" &&
         make -j $(($(nproc) + 1))
         check_error
         touch "$DIRNAME/deps-$ARCH_OPTION/zlib.stamp"
@@ -206,9 +203,6 @@ build_deps()
         echo "Compiling $ARCH_OPTION mbedtls"
         mkdir -p "$DIRNAME/deps-$ARCH_OPTION/mbedtls"
         cp -a -f "$DIRNAME/../lib/mbedtls/"* "$DIRNAME/deps-$ARCH_OPTION/mbedtls"
-        if [ "$ARCH_OPTION" = "x86" ]; then
-            sed -i 's/#define MBEDTLS_AESNI_C//g' "$DIRNAME/deps-$ARCH_OPTION/mbedtls/include/mbedtls/mbedtls_config.h"
-        fi
 
         cd "$DIRNAME/deps-$ARCH_OPTION/mbedtls"
         cmake . -DCMAKE_TOOLCHAIN_FILE=../../../cmake/Toolchain-android.cmake \
@@ -238,7 +232,7 @@ build_deps()
                 -DBUILD_TESTING=OFF -DBUILD_CURL_EXE=OFF                      \
                 -DCURL_USE_MBEDTLS=ON -DUSE_ZLIB=ON -DCURL_USE_OPENSSL=OFF    \
                 -DCURL_USE_LIBSSH=OFF -DCURL_USE_LIBSSH2=OFF                  \
-                -DCURL_USE_GSSAPI=OFF -DCURL_USE_LIBPSL=OFF -DUSE_NGHTTP2=OFF -DUSE_QUICHE=OFF      \
+                -DCURL_USE_GSSAPI=OFF -DUSE_NGHTTP2=OFF -DUSE_QUICHE=OFF      \
                 -DHTTP_ONLY=ON -DCURL_CA_BUNDLE=none -DCURL_CA_PATH=none      \
                 -DENABLE_THREADED_RESOLVER=ON -DCMAKE_C_FLAGS="-fpic -O3 -g" &&
         make -j $(($(nproc) + 1))
@@ -297,16 +291,6 @@ build_deps()
         cp -a -f "$DIRNAME/../lib/shaderc/"* "$DIRNAME/deps-$ARCH_OPTION/shaderc"
 
         cd "$DIRNAME/deps-$ARCH_OPTION/shaderc"
-        # shaderc passes a generator expression as GLSLANG_ENABLE_INSTALL, which CMake treats as "on"
-        # and then fails on glslang's export set; glslang never needs installing here
-        sed -i 's/set(GLSLANG_ENABLE_INSTALL \$<NOT:\${SKIP_GLSLANG_INSTALL}>)/set(GLSLANG_ENABLE_INSTALL OFF)/' third_party/CMakeLists.txt
-        
-        if [ ! -f "$DIRNAME/deps-$ARCH_OPTION/shaderc-deps.stamp" ]; then
-            ./utils/git-sync-deps
-            check_error
-            touch "$DIRNAME/deps-$ARCH_OPTION/shaderc-deps.stamp"
-        fi
-        
         cmake . -DCMAKE_TOOLCHAIN_FILE=../../../cmake/Toolchain-android.cmake  \
                 -DHOST=$HOST -DARCH=$ARCH -DCMAKE_C_FLAGS="-fpic -O3"          \
                 -DCMAKE_CXX_FLAGS="-fpic -O3" -DSHADERC_SKIP_INSTALL=1         \
@@ -353,110 +337,32 @@ build_deps()
 
         cd "$DIRNAME/deps-$ARCH_OPTION/astc-encoder"
         sed -i '/-Werror/d' Source/cmake_core.cmake
-        sed -i 's|${ASTCENC_TARGET}-static|astcenc|g' Source/cmake_core.cmake
+        sed -i 's|${ASTC_TARGET}-static|astcenc|g' Source/cmake_core.cmake
         if [ "$ARCH_OPTION" = "armeabi-v7a" ]; then
             cmake . -DCMAKE_TOOLCHAIN_FILE=../../../cmake/Toolchain-android.cmake \
                     -DHOST=$HOST -DARCH=$ARCH -DSTK_ARM_NEON=ON                   \
                     -DCMAKE_C_FLAGS="-fpic -O3 -g -mfpu=neon"                     \
                     -DCMAKE_CXX_FLAGS="-fpic -O3 -g -mfpu=neon"                   \
-                    -DASTCENC_INVARIANCE=OFF -DASTCENC_CLI=OFF
+                    -DNO_INVARIANCE=ON -DCLI=OFF
         elif [ "$ARCH_OPTION" = "arm64-v8a" ]; then
             cmake . -DCMAKE_TOOLCHAIN_FILE=../../../cmake/Toolchain-android.cmake \
                     -DHOST=$HOST -DARCH=$ARCH -DCMAKE_C_FLAGS="-fpic -O3 -g"      \
                     -DCMAKE_CXX_FLAGS="-fpic -O3 -g"                              \
-                    -DASTCENC_ISA_NEON=ON -DASTCENC_INVARIANCE=OFF -DASTCENC_CLI=OFF
-        else
-            if [ "$ARCH_OPTION" = "x86" ]; then
-                sed -i 's/_mm_popcnt_u64/__builtin_popcountll/g' Source/astcenc_vecmathlib_sse_4.h
-            fi
+                    -DISA_NEON=ON -DNO_INVARIANCE=ON -DCLI=OFF
+        elif [ "$ARCH_OPTION" = "x86" ]; then
             cmake . -DCMAKE_TOOLCHAIN_FILE=../../../cmake/Toolchain-android.cmake \
                     -DHOST=$HOST -DARCH=$ARCH -DCMAKE_C_FLAGS="-fpic -O3 -g"      \
                     -DCMAKE_CXX_FLAGS="-fpic -O3 -g"                              \
-                    -DASTCENC_ISA_SSE41=ON -DASTCENC_INVARIANCE=OFF -DASTCENC_CLI=OFF
+                    -DISA_SSE2=ON -DNO_INVARIANCE=ON -DCLI=OFF
+        else
+            cmake . -DCMAKE_TOOLCHAIN_FILE=../../../cmake/Toolchain-android.cmake \
+                    -DHOST=$HOST -DARCH=$ARCH -DCMAKE_C_FLAGS="-fpic -O3 -g"      \
+                    -DCMAKE_CXX_FLAGS="-fpic -O3 -g"                              \
+                    -DISA_SSE41=ON -DNO_INVARIANCE=ON -DCLI=OFF
         fi
         make -j $(($(nproc) + 1))
         check_error
         touch "$DIRNAME/deps-$ARCH_OPTION/astc-encoder.stamp"
-    fi
-
-    # libadrenotools (for custom vulkan driver(s))
-    if [ "$ARCH_OPTION" = "arm64-v8a" ]; then
-        if [ ! -f "$DIRNAME/deps-$ARCH_OPTION/libadrenotools.stamp" ]; then
-            echo "Compiling $ARCH_OPTION libadrenotools"
-            mkdir -p "$DIRNAME/deps-$ARCH_OPTION/libadrenotools"
-            mkdir -p "$DIRNAME/mesa/arm64-v8a"
-            # the dependency tarball ships libadrenotools without src/ and its submodule, so fetch it upstream
-            rm -rf "$DIRNAME/deps-$ARCH_OPTION/libadrenotools"
-            git clone --recursive https://github.com/bylaws/libadrenotools.git "$DIRNAME/deps-$ARCH_OPTION/libadrenotools"
-
-            cd "$DIRNAME/deps-$ARCH_OPTION/libadrenotools"
-            git submodule update --init
-            cmake . -DCMAKE_TOOLCHAIN_FILE=../../../cmake/Toolchain-android.cmake \
-                    -DHOST=$HOST -DARCH=$ARCH -DCMAKE_C_FLAGS="-fpic -O3 -g"      \
-                    -DCMAKE_CXX_FLAGS="-fpic -O3 -g"                              \
-                    -DCMAKE_SHARED_LINKER_FLAGS="-static-libstdc++ -static-libgcc"
-            make -j $(($(nproc) + 1))
-            check_error
-            cp "$DIRNAME/deps-$ARCH_OPTION/libadrenotools/src/hook/libhook_impl.so" "$DIRNAME/mesa/arm64-v8a"
-            cp "$DIRNAME/deps-$ARCH_OPTION/libadrenotools/src/hook/libmain_hook.so" "$DIRNAME/mesa/arm64-v8a"
-            touch "$DIRNAME/deps-$ARCH_OPTION/libadrenotools.stamp"
-        fi
-
-        if [ ! -f "$DIRNAME/deps-$ARCH_OPTION/mesa.stamp" ]; then
-            echo "Compiling $ARCH_OPTION mesa"
-            mkdir -p "$DIRNAME/deps-$ARCH_OPTION/mesa"
-            cp -a -f "$DIRNAME/../lib/mesa/"* "$DIRNAME/deps-$ARCH_OPTION/mesa"
-
-            cd "$DIRNAME/deps-$ARCH_OPTION/mesa"
-            cat > crossfile <<EOF
-[constants]
-ndk_path = '$NDK_PATH'
-
-[binaries]
-ar = ndk_path / 'toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar'
-c = ['ccache', ndk_path / 'toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang']
-cpp = ['ccache', ndk_path / 'toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang++', '-fno-exceptions', '-fno-unwind-tables', '-fno-asynchronous-unwind-tables', '-static-libstdc++', '-Wno-c++11-narrowing']
-c_ld = 'lld'
-cpp_ld = 'lld'
-
-# Android doesn't come with a pkg-config, but we need one for meson to be happy not
-# finding all the optional deps it looks for.  Use system pkg-config pointing at a
-# directory we get to populate with any .pc files we want to add for Android
-
-# Also, include the plain DRM lib we found earlier. Panfrost relies on it rather heavily, especially when
-# interacting with the panfrost DRM module and not kbase
-pkg-config = ['env', 'PKG_CONFIG_LIBDIR=.:/tmp/drm-static/lib/pkgconfig', '/usr/bin/pkg-config']
-
-strip = [ndk_path / 'toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android-strip', '-s']
-
-[host_machine]
-system = 'android'
-cpu_family = 'aarch64'
-cpu = 'armv8'
-endian = 'little'
-EOF
-            sed -i 's/dep_libarchive = dependency(.*/dep_libarchive = null_dep/' src/freedreno/meson.build
-            sed -i 's/dep_libxml2 = dependency(.*/dep_libxml2 = null_dep/' src/freedreno/meson.build
-            sed -i 's/#elif DETECT_OS_ANDROID && !defined(__cplusplus)/#elif 0/' src/util/perf/cpu_trace.h
-            meson setup build --cross-file crossfile \
-                -Dbuildtype=release \
-                -Dplatforms=android \
-                -Dplatform-sdk-version=26 \
-                -Dandroid-stub=true \
-                -Dgallium-drivers= \
-                -Dvulkan-drivers=freedreno \
-                -Dfreedreno-kmds=kgsl \
-                -Db_lto=true \
-                -Db_lto_mode=thin \
-                -Degl=disabled \
-                -Dvalgrind=disabled \
-                -Dzstd=disabled \
-                -Dshader-cache=disabled
-            meson compile -C build
-            check_error
-            cp "$DIRNAME/deps-$ARCH_OPTION/mesa/build/src/freedreno/vulkan/libvulkan_freedreno.so" "$DIRNAME/mesa/arm64-v8a"
-            touch "$DIRNAME/deps-$ARCH_OPTION/mesa.stamp"
-        fi
     fi
 }
 

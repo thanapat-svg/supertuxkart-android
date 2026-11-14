@@ -398,7 +398,7 @@ void DriveGraph::setDefaultSuccessors()
  *  \param sidewards_distance Distance in sidewards (X) direction between
  *               karts.
  */
-void DriveGraph::setDefaultStartPositions(std::vector<btTransform>
+void DriveGraph::setDefaultStartPositions(AlignedArray<btTransform>
                                                        *start_transforms,
                                           unsigned int karts_per_row,
                                           float forwards_distance,
@@ -411,12 +411,6 @@ void DriveGraph::setDefaultStartPositions(std::vector<btTransform>
     int current_node = getNode(getStartNode())->getPredecessor(0);
 
     float distance_from_start = 0.75f+forwards_distance;
-    float multiplier = 1.0f;
-    if (sidewards_distance < 0)
-    {
-        sidewards_distance = -sidewards_distance;
-        multiplier = -1.0f;
-    }
 
     // Maximum distance to left (or right) of centre line
     const float max_x_dist    = 0.5f*(karts_per_row-0.5f)*sidewards_distance;
@@ -450,7 +444,7 @@ void DriveGraph::setDefaultStartPositions(std::vector<btTransform>
 
             Vec3 start = dn->getUpperCenter()
                        + center_line     * distance_from_start
-                       + horizontal_line * x_pos * multiplier;
+                       + horizontal_line * x_pos;
             // Add a certain epsilon to the height in case that the
             // drivelines are beneath the track.
             (*start_transforms)[i].setOrigin(start+Vec3(0,upwards_distance,0));

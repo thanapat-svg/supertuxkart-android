@@ -33,10 +33,6 @@
 #  pragma warning(default:4244)
 #endif
 
-#ifdef HAVE_OPUS
-#  include <opusfile.h>
-#endif
-
 #include <AL/al.h>
 #include "audio/music.hpp"
 
@@ -53,6 +49,7 @@ public:
     virtual ~MusicOggStream();
 
     virtual void update();
+    virtual void updateFaster(float percent, float max_pitch);
 
     virtual bool load(const std::string& filename);
 
@@ -80,15 +77,7 @@ private:
     vorbis_info*    m_vorbisInfo;
     bool            m_error;
 
-#ifdef HAVE_OPUS
-    /** Whether this stream uses Opus (true) or Vorbis (false). */
-    bool            m_useOpus;
-    OggOpusFile*    m_opusFile;
-    const OpusHead* m_opusHead;
-#endif
-
     std::atomic_bool m_playing;
-    std::atomic_bool m_play_initialized;
 
     ALuint m_soundBuffers[2];
     ALuint m_soundSource;
@@ -96,13 +85,8 @@ private:
 
     bool m_pausedMusic;
 
-#ifdef HAVE_OPUS
-    // One second at 48000 Hz stereo 16-bit (Opus native rate)
-    static const int m_buffer_size = 48000 * 2 * 2;
-#else
-    // One quarter second at 44100 Hz stereo 16-bit
-    static const int m_buffer_size = 11025 * 4;
-#endif
+    //one full second of audio at 44100 samples per second
+    static const int m_buffer_size = 11025*4;
 };
 
 #endif

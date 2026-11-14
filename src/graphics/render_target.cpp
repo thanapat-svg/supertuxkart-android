@@ -24,8 +24,6 @@
 #include "graphics/rtts.hpp"
 #include "graphics/shader_based_renderer.hpp"
 
-#include <ISceneManager.h>
-#include <IVideoDriver.h>
 
 //-----------------------------------------------------------------------------
 GL1RenderTarget::GL1RenderTarget(const irr::core::dimension2du &dimension,
@@ -41,7 +39,7 @@ GL1RenderTarget::GL1RenderTarget(const irr::core::dimension2du &dimension,
     }
     else
     {
-        // m_render_target_texture will be NULL if RTT doesn't work on this
+        // m_render_target_texture will be NULL if RTT doesn't work on this 
         // computer
         Log::error("GL1RenderTarget", "Cannot render to texture.");
     }

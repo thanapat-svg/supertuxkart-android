@@ -20,9 +20,8 @@
 
 #include "guiengine/screen.hpp"
 
-namespace GUIEngine { class Widget;       class ListWidget;
-                      class ButtonWidget; class IconButtonWidget;
-                      class STKModifiedSpriteBank; }
+namespace GUIEngine { class Widget;       class ListWidget; 
+                      class ButtonWidget; class IconButtonWidget; }
 
 /**
   * \brief Handles the main menu
@@ -39,6 +38,8 @@ private:
     core::stringw m_news_text;
 
     MainMenuScreen();
+
+    void startTutorial();
 public:
     virtual void onUpdate(float delta) OVERRIDE;
 

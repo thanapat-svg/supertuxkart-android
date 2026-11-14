@@ -19,7 +19,6 @@
 
 #include <iostream>
 
-#include <IrrlichtDevice.h>
 #include <IGUIFont.h>
 #include <ITexture.h>
 
@@ -69,7 +68,7 @@ bool LayoutManager::convertToCoord(std::string& x, int* absolute /* out */, int*
     else if( x[x.size()-1] == 'f' ) // font height
     {
         *absolute = i * GUIEngine::getFontHeight();
-        return true;
+    	return true;
     }
     else // absolute number
     {
@@ -420,7 +419,6 @@ void LayoutManager::recursivelyReadCoords(PtrVector<Widget>& widgets)
     // ----- read x/y/size parameters
     for (unsigned short n=0; n<widgets_amount; n++)
     {
-        widgets.get(n)->resetCoordinates();
         readCoords(widgets.get(n));
     }//next widget
 }

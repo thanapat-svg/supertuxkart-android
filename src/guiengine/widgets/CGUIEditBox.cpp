@@ -24,7 +24,6 @@
 
 #include "../../../lib/irrlicht/include/IrrCompileConfig.h"
 #include "../../../lib/irrlicht/source/Irrlicht/CIrrDeviceLinux.h"
-#include <IrrlichtDevice.h>
 
 #include <algorithm>
 #include <cstdlib>
@@ -307,7 +306,6 @@ bool CGUIEditBox::isOverrideColorEnabled() const
 void CGUIEditBox::updateAbsolutePosition()
 {
     IGUIElement::updateAbsolutePosition();
-    calculateScrollPos();
 }
 
 
@@ -582,7 +580,6 @@ bool CGUIEditBox::processKey(const SEvent& event)
                     new_mark_end = 0;
                     text_changed = true;
                 }
-                SDL_free(clipboard_u8);
             }
             break;
         case IRR_KEY_HOME:
@@ -1019,7 +1016,7 @@ void CGUIEditBox::draw()
         core::rect< s32 > caret_rect = CurrentTextRect;
         caret_rect.UpperLeftCorner.X += m_cursor_distance - 1;
         caret_rect.LowerRightCorner.X = caret_rect.UpperLeftCorner.X + 2;
-        GL32_draw2DRectangle(skin->getColor(EGDC_BUTTON_TEXT), caret_rect);
+        GL32_draw2DRectangle(video::SColor(255, 0, 0, 0), caret_rect);
     }
 
     // Return the override color information to its previous settings.

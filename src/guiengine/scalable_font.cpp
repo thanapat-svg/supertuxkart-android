@@ -150,9 +150,7 @@ IGUISpriteBank* ScalableFont::getSpriteBank() const
 // ----------------------------------------------------------------------------
 s32 ScalableFont::getHeightPerLine() const
 {
-    return m_face->getFontMaxHeight()
-         * m_face->getNativeScalingFactor()
-         * m_font_settings->getScale();
+    return m_face->getFontMaxHeight() * m_font_settings->getScale();
 }   // getHeightPerLine
 
 // ----------------------------------------------------------------------------

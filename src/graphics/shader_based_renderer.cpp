@@ -20,7 +20,7 @@
 #include "graphics/shader_based_renderer.hpp"
 
 #include "config/user_config.hpp"
-#include "graphics/camera/camera.hpp"
+#include "graphics/camera.hpp"
 #include "graphics/central_settings.hpp"
 #include "graphics/cpu_particle_manager.hpp"
 #include "graphics/frame_buffer_layer.hpp"
@@ -48,8 +48,7 @@
 
 #include "../../lib/irrlicht/source/Irrlicht/CSceneManager.h"
 #include "../../lib/irrlicht/source/Irrlicht/os.h"
-#include <IVideoDriver.h>
-#include <algorithm>
+#include <algorithm> 
 
 // ----------------------------------------------------------------------------
 void ShaderBasedRenderer::setRTT(RTT* rtts)
@@ -136,9 +135,9 @@ void ShaderBasedRenderer::renderSSAO() const
                                   m_rtts->getDepthStencilTexture());
     // Blur it to reduce noise.
     FrameBuffer::blit(m_rtts->getFBO(FBO_SSAO),
-                      m_rtts->getFBO(FBO_HALF1_R),
+                      m_rtts->getFBO(FBO_HALF1_R), 
                       GL_COLOR_BUFFER_BIT, GL_LINEAR);
-    m_post_processing->renderGaussian9TapBlur(m_rtts->getFBO(FBO_HALF1_R),
+    m_post_processing->renderGaussian17TapBlur(m_rtts->getFBO(FBO_HALF1_R), 
                                                m_rtts->getFBO(FBO_HALF2_R),
                                                m_rtts->getFBO(FBO_LINEAR_DEPTH));
 
@@ -170,7 +169,7 @@ void ShaderBasedRenderer::renderGlow() const
 // ----------------------------------------------------------------------------
 void ShaderBasedRenderer::renderShadows()
 {
-    PROFILER_PUSH_CPU_MARKER("-- Shadow Pass", 0xFF, 0x00, 0x00);
+    PROFILER_PUSH_CPU_MARKER("- Shadow Pass", 0xFF, 0x00, 0x00);
     glDepthFunc(GL_LEQUAL);
     glDepthMask(GL_TRUE);
     glEnable(GL_DEPTH_TEST);
@@ -195,7 +194,7 @@ void ShaderBasedRenderer::renderShadows()
 }
 
 // ============================================================================
-class CombineDiffuseColor : public TextureShader<CombineDiffuseColor, 6,
+class CombineDiffuseColor : public TextureShader<CombineDiffuseColor, 7,
                                                  std::array<float, 4> >
 {
 public:
@@ -206,16 +205,17 @@ public:
         assignUniforms("bg_color");
         assignSamplerNames(0, "diffuse_map", ST_NEAREST_FILTERED,
                            1, "specular_map", ST_NEAREST_FILTERED,
-                           2, "normal_color", ST_NEAREST_FILTERED,
-                           3, "diffuse_color", ST_NEAREST_FILTERED,
-                           4, "depth_stencil", ST_NEAREST_FILTERED,
-                           5, "light_scatter", ST_NEAREST_FILTERED);
+                           2, "ssao_tex", ST_NEAREST_FILTERED,
+                           3, "normal_color", ST_NEAREST_FILTERED,
+                           4, "diffuse_color", ST_NEAREST_FILTERED,
+                           5, "depth_stencil", ST_NEAREST_FILTERED,
+                           6, "light_scatter", ST_NEAREST_FILTERED);
     }   // CombineDiffuseColor
     // ------------------------------------------------------------------------
-    void render(GLuint dm, GLuint sm, GLuint nt, GLuint dc,
+    void render(GLuint dm, GLuint sm, GLuint st, GLuint nt, GLuint dc,
                 GLuint ds, GLuint lt, const std::array<float, 4> & bg_color)
     {
-        setTextureUnits(dm, sm, nt, dc, ds, lt);
+        setTextureUnits(dm, sm, st, nt, dc, ds, lt);
         drawFullScreenEffect(bg_color);
     }   // render
 };   // CombineDiffuseColor
@@ -236,10 +236,10 @@ void ShaderBasedRenderer::renderSceneDeferred(scene::ICameraSceneNode * const ca
     }
     irr_driver->getSceneManager()->setActiveCamera(camnode);
 
-    PROFILER_PUSH_CPU_MARKER("-- Draw Call Generation xxx", 0xFF, 0xFF, 0xFF);
+    PROFILER_PUSH_CPU_MARKER("- Draw Call Generation xxx", 0xFF, 0xFF, 0xFF);
     m_draw_calls.prepareDrawCalls(camnode);
     PROFILER_POP_CPU_MARKER();
-    PROFILER_PUSH_CPU_MARKER("-- Update Light Info", 0xFF, 0x0, 0x0);
+    PROFILER_PUSH_CPU_MARKER("Update Light Info", 0xFF, 0x0, 0x0);
     m_lighting_passes.updateLightsInfo(camnode, dt);
     PROFILER_POP_CPU_MARKER();
 
@@ -265,19 +265,10 @@ void ShaderBasedRenderer::renderSceneDeferred(scene::ICameraSceneNode * const ca
         SP::draw(SP::RP_1ST, SP::DCT_NORMAL);
     }
 
-    // Handle SSAO
-    {
-        PROFILER_PUSH_CPU_MARKER("-- SSAO", 0xFF, 0xFF, 0x00);
-        ScopedGPUTimer Timer(irr_driver->getGPUTimer(Q_SSAO));
-        if (UserConfigParams::m_ssao)
-            renderSSAO();
-        PROFILER_POP_CPU_MARKER();
-    }
-
     glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
     // Lights
     {
-        PROFILER_PUSH_CPU_MARKER("-- Light", 0x00, 0xFF, 0x00);
+        PROFILER_PUSH_CPU_MARKER("- Light", 0x00, 0xFF, 0x00);
         m_rtts->getFBO(FBO_COMBINED_DIFFUSE_SPECULAR).bind();
         glClear(GL_COLOR_BUFFER_BIT);
         GLuint specular_probe = 0;
@@ -288,13 +279,18 @@ void ShaderBasedRenderer::renderSceneDeferred(scene::ICameraSceneNode * const ca
         m_lighting_passes.renderLights( hasShadow,
                                         m_rtts->getRenderTarget(RTT_NORMAL_AND_DEPTH),
                                         m_rtts->getDepthStencilTexture(),
-                                        // FIXME don't use previous frame for SSR
-                                        Camera::getNumCameras() == 1 ? m_rtts->getRenderTarget(RTT_COLOR) : m_rtts->getRenderTarget(RTT_SP_DIFF_COLOR),
+                                        m_rtts->getRenderTarget(RTT_COLOR),
                                         m_rtts->getShadowFrameBuffer(),
-                                        m_rtts->getRenderTarget(RTT_HALF1_R),
-                                        m_rtts->getRenderTarget(RTT_SP_DIFF_COLOR),
-                                        specular_probe,
-                                        m_shadow_matrices.getShadowFrustumBoxExtent());
+                                        specular_probe);
+        PROFILER_POP_CPU_MARKER();
+    }
+
+    // Handle SSAO
+    {
+        PROFILER_PUSH_CPU_MARKER("- SSAO", 0xFF, 0xFF, 0x00);
+        ScopedGPUTimer Timer(irr_driver->getGPUTimer(Q_SSAO));
+        if (UserConfigParams::m_ssao)
+            renderSSAO();
         PROFILER_POP_CPU_MARKER();
     }
 
@@ -302,26 +298,19 @@ void ShaderBasedRenderer::renderSceneDeferred(scene::ICameraSceneNode * const ca
     // Render discrete lights scattering
     if (UserConfigParams::m_light_scatter && track && track->isFogEnabled())
     {
-        PROFILER_PUSH_CPU_MARKER("-- Light Scatter", 0xFF, 0x00, 0x00);
-        {
-            ScopedGPUTimer Timer(irr_driver->getGPUTimer(Q_LIGHTSCATTER));
-            m_lighting_passes.renderLightsScatter(m_rtts->getDepthStencilTexture(),
-                                                  m_rtts->getFBO(FBO_HALF1),
-                                                  m_rtts->getFBO(FBO_HALF2),
-                                                  m_post_processing.get());
-        }
-        {
-            ScopedGPUTimer timer(irr_driver->getGPUTimer(Q_BLURSCATTER));
-            m_post_processing->renderGaussian6Blur(m_rtts->getFBO(FBO_HALF1),
-                                                 m_rtts->getFBO(FBO_HALF2), 5., 5.);
-        }
+        PROFILER_PUSH_CPU_MARKER("- Light Scatter", 0xFF, 0x00, 0x00);
+        ScopedGPUTimer Timer(irr_driver->getGPUTimer(Q_LIGHTSCATTER));
+        m_lighting_passes.renderLightsScatter(m_rtts->getDepthStencilTexture(),
+                                              m_rtts->getFBO(FBO_HALF1),
+                                              m_rtts->getFBO(FBO_HALF2),
+                                              m_post_processing.get());
         PROFILER_POP_CPU_MARKER();
     }
 
     // Render anything glowing.
     if (UserConfigParams::m_glow)
     {
-        PROFILER_PUSH_CPU_MARKER("-- Glow", 0xFF, 0xFF, 0x00);
+        PROFILER_PUSH_CPU_MARKER("- Glow", 0xFF, 0xFF, 0x00);
         ScopedGPUTimer Timer(irr_driver->getGPUTimer(Q_GLOW));
         renderGlow();
         // To half
@@ -338,7 +327,7 @@ void ShaderBasedRenderer::renderSceneDeferred(scene::ICameraSceneNode * const ca
         GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
     {
-        PROFILER_PUSH_CPU_MARKER("-- Combine diffuse color", 0x2F, 0x77, 0x33);
+        PROFILER_PUSH_CPU_MARKER("- Combine diffuse color", 0x2F, 0x77, 0x33);
         ScopedGPUTimer Timer(irr_driver->getGPUTimer(Q_COMBINE_DIFFUSE_COLOR));
         glDisable(GL_DEPTH_TEST);
         glDepthMask(GL_FALSE);
@@ -359,6 +348,7 @@ void ShaderBasedRenderer::renderSceneDeferred(scene::ICameraSceneNode * const ca
         CombineDiffuseColor::getInstance()->render(
             m_rtts->getRenderTarget(RTT_DIFFUSE),
             m_rtts->getRenderTarget(RTT_SPECULAR),
+            m_rtts->getRenderTarget(RTT_HALF1_R),
             m_rtts->getRenderTarget(RTT_NORMAL_AND_DEPTH),
             m_rtts->getRenderTarget(RTT_SP_DIFF_COLOR),
             m_rtts->getDepthStencilTexture(),
@@ -377,7 +367,7 @@ void ShaderBasedRenderer::renderSceneDeferred(scene::ICameraSceneNode * const ca
     }
 
     {
-        PROFILER_PUSH_CPU_MARKER("-- Skybox", 0xFF, 0x00, 0xFF);
+        PROFILER_PUSH_CPU_MARKER("- Skybox", 0xFF, 0x00, 0xFF);
         ScopedGPUTimer Timer(irr_driver->getGPUTimer(Q_SKYBOX));
         renderSkybox(camnode);
         PROFILER_POP_CPU_MARKER();
@@ -390,7 +380,7 @@ void ShaderBasedRenderer::renderSceneDeferred(scene::ICameraSceneNode * const ca
 
     // Render transparent
     {
-        PROFILER_PUSH_CPU_MARKER("-- Transparent Pass", 0xFF, 0x00, 0x00);
+        PROFILER_PUSH_CPU_MARKER("- Transparent Pass", 0xFF, 0x00, 0x00);
         ScopedGPUTimer Timer(irr_driver->getGPUTimer(Q_TRANSPARENT));
         SP::draw(SP::RP_1ST, SP::DCT_TRANSPARENT);
         SP::draw(SP::RP_RESERVED, SP::DCT_TRANSPARENT);
@@ -399,7 +389,7 @@ void ShaderBasedRenderer::renderSceneDeferred(scene::ICameraSceneNode * const ca
 
     // Render particles and text billboard
     {
-        PROFILER_PUSH_CPU_MARKER("-- Particles and text billboard", 0xFF, 0xFF,
+        PROFILER_PUSH_CPU_MARKER("- Particles and text billboard", 0xFF, 0xFF,
             0x00);
         ScopedGPUTimer Timer(irr_driver->getGPUTimer(Q_PARTICLES));
         CPUParticleManager::getInstance()->drawAll();
@@ -433,7 +423,7 @@ void ShaderBasedRenderer::renderScene(scene::ICameraSceneNode * const camnode,
     }
     irr_driver->getSceneManager()->setActiveCamera(camnode);
 
-    PROFILER_PUSH_CPU_MARKER("-- Draw Call Generation", 0xFF, 0xFF, 0xFF);
+    PROFILER_PUSH_CPU_MARKER("- Draw Call Generation", 0xFF, 0xFF, 0xFF);
     m_draw_calls.prepareDrawCalls(camnode);
     PROFILER_POP_CPU_MARKER();
 
@@ -466,7 +456,7 @@ void ShaderBasedRenderer::renderScene(scene::ICameraSceneNode * const camnode,
     }
 
     {
-        PROFILER_PUSH_CPU_MARKER("-- Skybox", 0xFF, 0x00, 0xFF);
+        PROFILER_PUSH_CPU_MARKER("- Skybox", 0xFF, 0x00, 0xFF);
         ScopedGPUTimer Timer(irr_driver->getGPUTimer(Q_SKYBOX));
         renderSkybox(camnode);
         PROFILER_POP_CPU_MARKER();
@@ -474,7 +464,7 @@ void ShaderBasedRenderer::renderScene(scene::ICameraSceneNode * const camnode,
 
     // Render transparent
     {
-        PROFILER_PUSH_CPU_MARKER("-- Transparent Pass", 0xFF, 0x00, 0x00);
+        PROFILER_PUSH_CPU_MARKER("- Transparent Pass", 0xFF, 0x00, 0x00);
         ScopedGPUTimer Timer(irr_driver->getGPUTimer(Q_TRANSPARENT));
         SP::draw(SP::RP_1ST, SP::DCT_TRANSPARENT);
         SP::draw(SP::RP_RESERVED, SP::DCT_TRANSPARENT);
@@ -483,7 +473,7 @@ void ShaderBasedRenderer::renderScene(scene::ICameraSceneNode * const camnode,
 
     // Render particles and text billboard
     {
-        PROFILER_PUSH_CPU_MARKER("-- Particles and text billboard", 0xFF, 0xFF,
+        PROFILER_PUSH_CPU_MARKER("- Particles and text billboard", 0xFF, 0xFF,
             0x00);
         ScopedGPUTimer Timer(irr_driver->getGPUTimer(Q_PARTICLES));
         CPUParticleManager::getInstance()->drawAll();
@@ -519,7 +509,7 @@ void ShaderBasedRenderer::debugPhysics()
         IrrDebugDrawer* debug_drawer = Physics::get()->getDebugDrawer();
         if (debug_drawer != NULL && debug_drawer->debugEnabled())
         {
-            const std::map<video::SColor, std::vector<float> >& lines =
+            const std::map<video::SColor, std::vector<float> >& lines = 
                                                        debug_drawer->getLines();
             std::map<video::SColor, std::vector<float> >::const_iterator it;
 
@@ -562,15 +552,15 @@ void ShaderBasedRenderer::renderPostProcessing(Camera * const camera,
     // during scene rendering, but irrlicht thinks that nothing changed
     // when single camera is used. In this case we set the viewport
     // to whole screen manually.
-    glViewport(0, 0, irr_driver->getActualScreenSize().Width,
+    glViewport(0, 0, irr_driver->getActualScreenSize().Width, 
         irr_driver->getActualScreenSize().Height);
 
     if (SP::sp_debug_view)
     {
         m_rtts->getFBO(FBO_NORMAL_AND_DEPTHS).blitToDefault(
-            viewport.UpperLeftCorner.X,
-            irr_driver->getActualScreenSize().Height - viewport.LowerRightCorner.Y,
-            viewport.LowerRightCorner.X,
+            viewport.UpperLeftCorner.X, 
+            irr_driver->getActualScreenSize().Height - viewport.LowerRightCorner.Y, 
+            viewport.LowerRightCorner.X, 
             irr_driver->getActualScreenSize().Height - viewport.UpperLeftCorner.Y);
     }
     else if (irr_driver->getSSAOViz())
@@ -682,7 +672,7 @@ void ShaderBasedRenderer::addSkyBox(const std::vector<video::IImage*> &texture,
 void ShaderBasedRenderer::removeSkyBox()
 {
     delete m_skybox;
-    m_skybox = NULL;
+    m_skybox = NULL;    
 }
 
 // ----------------------------------------------------------------------------
@@ -732,7 +722,7 @@ void ShaderBasedRenderer::render(float dt, bool is_loading)
     }
 
     {
-        PROFILER_PUSH_CPU_MARKER("- Update scene", 0x0, 0xFF, 0x0);
+        PROFILER_PUSH_CPU_MARKER("Update scene", 0x0, 0xFF, 0x0);
         static_cast<scene::CSceneManager *>(irr_driver->getSceneManager())
             ->OnAnimate(os::Timer::getTime());
         PROFILER_POP_CPU_MARKER();
@@ -747,7 +737,7 @@ void ShaderBasedRenderer::render(float dt, bool is_loading)
         scene::ICameraSceneNode * const camnode = camera->getCameraSceneNode();
 
         std::ostringstream oss;
-        oss << "- drawAll() for kart " << cam;
+        oss << "drawAll() for kart " << cam;
         PROFILER_PUSH_CPU_MARKER(oss.str().c_str(), (cam+1)*60,
                                  0x00, 0x00);
         camera->activate(!CVS->isDeferredEnabled());
@@ -757,11 +747,11 @@ void ShaderBasedRenderer::render(float dt, bool is_loading)
         computeMatrixesAndCameras(camnode, m_rtts->getWidth(), m_rtts->getHeight());
         if (CVS->isDeferredEnabled())
         {
-            renderSceneDeferred(camnode, dt, track->hasShadows(), false);
+            renderSceneDeferred(camnode, dt, track->hasShadows(), false); 
         }
         else
         {
-            renderScene(camnode, dt, track->hasShadows(), false);
+            renderScene(camnode, dt, track->hasShadows(), false); 
         }
 
         if (irr_driver->getBoundingBoxesViz())
@@ -796,14 +786,14 @@ void ShaderBasedRenderer::render(float dt, bool is_loading)
         irr_driver->getActualScreenSize().Height));
 
     m_current_screen_size = core::vector2df(
-                                    (float)irr_driver->getActualScreenSize().Width,
+                                    (float)irr_driver->getActualScreenSize().Width, 
                                     (float)irr_driver->getActualScreenSize().Height);
 
     for(unsigned int i=0; i<Camera::getNumCameras(); i++)
     {
         Camera *camera = Camera::getCamera(i);
         std::ostringstream oss;
-        oss << "- renderPlayerView() for kart " << i;
+        oss << "renderPlayerView() for kart " << i;
 
         PROFILER_PUSH_CPU_MARKER(oss.str().c_str(), 0x00, 0x00, (i+1)*60);
         rg->renderPlayerView(camera, dt);
@@ -813,7 +803,7 @@ void ShaderBasedRenderer::render(float dt, bool is_loading)
 
     {
         ScopedGPUTimer Timer(irr_driver->getGPUTimer(Q_GUI));
-        PROFILER_PUSH_CPU_MARKER("- GUIEngine", 0x75, 0x75, 0x75);
+        PROFILER_PUSH_CPU_MARKER("GUIEngine", 0x75, 0x75, 0x75);
         // Either render the gui, or the global elements of the race gui.
         GUIEngine::render(dt, is_loading);
 
@@ -832,7 +822,7 @@ void ShaderBasedRenderer::render(float dt, bool is_loading)
     drawDebugMeshes();
 #endif
 
-    PROFILER_PUSH_CPU_MARKER("- EndScene", 0x45, 0x75, 0x45);
+    PROFILER_PUSH_CPU_MARKER("EndScene", 0x45, 0x75, 0x45);
     irr_driver->getVideoDriver()->endScene();
     PROFILER_POP_CPU_MARKER();
 

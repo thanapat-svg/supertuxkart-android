@@ -20,7 +20,8 @@
 
 #ifndef HEADER_CRYPTO_MBEDTLS_HPP
 #define HEADER_CRYPTO_MBEDTLS_HPP
-#define CRYPTO_AES_GCM_32BIT_TAG
+
+#include "utils/log.hpp"
 
 #include <enet/enet.h>
 #include <mbedtls/ctr_drbg.h>
@@ -30,7 +31,6 @@
 #include <algorithm>
 #include <array>
 #include <cassert>
-#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <random>
@@ -55,8 +55,6 @@ private:
 
     std::mutex m_crypto_mutex;
 
-    const size_t m_tag_size;
-
 public:
     // ------------------------------------------------------------------------
     static std::string base64(const std::vector<uint8_t>& input);
@@ -65,13 +63,12 @@ public:
     // ------------------------------------------------------------------------
     static std::array<uint8_t, 32> sha256(const std::string& input);
     // ------------------------------------------------------------------------
-    static std::unique_ptr<Crypto> getClientCrypto(size_t tag_size = 4)
+    static std::unique_ptr<Crypto> getClientCrypto()
     {
         assert(!m_client_key.empty());
         assert(!m_client_iv.empty());
-        assert(tag_size == 4 || tag_size == 16);
         auto c = std::unique_ptr<Crypto>(new Crypto(decode64(m_client_key),
-            decode64(m_client_iv), tag_size));
+            decode64(m_client_iv)));
         c->m_packet_counter = 0;
         return c;
     }
@@ -111,12 +108,10 @@ public:
     static const std::string& getClientIV()             { return m_client_iv; }
     // ------------------------------------------------------------------------
     Crypto(const std::vector<uint8_t>& key,
-           const std::vector<uint8_t>& iv,
-           size_t tag_size = 4) : m_tag_size(tag_size)
+           const std::vector<uint8_t>& iv)
     {
         assert(key.size() == 16);
         assert(iv.size() == 12);
-        assert(m_tag_size == 4 || m_tag_size == 16);
         std::copy_n(iv.begin(), 12, m_iv.begin());
         m_packet_counter = 0;
         mbedtls_gcm_init(&m_aes_encrypt_context);

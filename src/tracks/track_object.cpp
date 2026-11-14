@@ -366,7 +366,7 @@ void TrackObject::init(const XMLNode &xml_node, scene::ISceneNode* parent,
         {
             m_animator = new ThreeDAnimation(xml_node, this);
         }
-        catch (std::runtime_error& e)
+        catch (std::exception& e)
         {
 #ifndef SERVER_ONLY
             Log::debug("TrackObject", e.what());
@@ -393,12 +393,12 @@ void TrackObject::onWorldReady()
     else if (m_visibility_condition.size() > 0)
     {
         unsigned char result = -1;
-        Scripting::ScriptEngine* script_engine =
+        Scripting::ScriptEngine* script_engine = 
                                         Scripting::ScriptEngine::getInstance();
 
         std::ostringstream fn_signature;
         std::vector<std::string> arguments;
-        if (m_visibility_condition.find("(") != std::string::npos &&
+        if (m_visibility_condition.find("(") != std::string::npos && 
             m_visibility_condition.find(")") != std::string::npos)
         {
             // There are arguments to pass to the function
@@ -428,7 +428,7 @@ void TrackObject::onWorldReady()
 
         TrackObject* self = this;
         script_engine->runFunction(true, fn_signature.str(),
-            [&](asIScriptContext* ctx)
+            [&](asIScriptContext* ctx) 
             {
                 for (unsigned int i = 0; i < arguments.size(); i++)
                 {
@@ -535,7 +535,7 @@ void TrackObject::updateGraphics(float dt)
 
 // ----------------------------------------------------------------------------
 /** This updates once per physics time step.
- *  float dt Time since last frame.
+ *  float dt Time since last rame.
  */
 void TrackObject::update(float dt)
 {
@@ -544,22 +544,6 @@ void TrackObject::update(float dt)
     if (m_animator) m_animator->updateWithWorldTicks(true/*has_physics*/);
 }   // update
 
-// ----------------------------------------------------------------------------
-/** Return false if this TrackObject doesn't need ongoing updates
- */
-bool TrackObject::needsOngoingUpdates()
-{
-    if (m_animator)
-        return true;
-    // The dynamic status of a physical object is constant after creation
-    else if (m_physical_object && m_physical_object->isDynamic())
-        return true;
-    // Currently, no presentation update returns true
-    else if (m_presentation && m_presentation->update(0.0))
-        return true;
-
-    return false;
-}   // needsOngoingUpdates
 
 // ----------------------------------------------------------------------------
 /** This reset all physical object moved by 3d animation back to current ticks
@@ -589,7 +573,7 @@ void TrackObject::resetAfterRewind()
  *  \return True if a triangle was hit, false otherwise (and no output
  *          variable will be set.
  */
-bool TrackObject::castRay(const btVector3 &from,
+bool TrackObject::castRay(const btVector3 &from, 
                           const btVector3 &to, btVector3 *hit_point,
                           const Material **material, btVector3 *normal,
                           bool interpolate_normal) const

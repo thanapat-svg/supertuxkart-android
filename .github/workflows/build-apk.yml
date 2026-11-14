@@ -13,8 +13,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     env:
-      NDK_VER: 28.1.13356709
-      VERSION_NAME: android.${{ github.run_number }}
+      NDK_VER: 23.1.7779620
+      VERSION_NAME: 1.4-android.${{ github.run_number }}
     steps:
       - uses: actions/checkout@v4
 
@@ -37,18 +37,21 @@ jobs:
 
       - name: Fetch dependencies and assets
         run: |
-          curl -fsSL -o deps.tar.xz https://github.com/supertuxkart/dependencies/releases/download/preview/dependencies-android-src.tar.xz
+          curl -fsSL -o deps.tar.xz https://github.com/supertuxkart/dependencies/releases/download/1.4/dependencies-android-src.tar.xz
           tar -xf deps.tar.xz -C lib
           ls lib
-          # official game assets (karts, tracks, music) live in SVN
-          svn export -q https://svn.code.sf.net/p/supertuxkart/code/stk-assets ../stk-assets
+          # the 1.4 release source package contains the matching game assets (karts, tracks, music)
+          curl -fsSL -o stk-src.tar.xz https://github.com/supertuxkart/stk-code/releases/download/1.4/SuperTuxKart-1.4-src.tar.xz
+          mkdir -p /tmp/stksrc && tar -xf stk-src.tar.xz -C /tmp/stksrc --wildcards '*/data/*'
+          rm stk-src.tar.xz
+          mv /tmp/stksrc/*/data ../stk-assets
           du -sh ../stk-assets; ls ../stk-assets
 
       - name: Cache built dependencies
         uses: actions/cache@v4
         with:
           path: android/deps-arm64-v8a
-          key: stk-deps-arm64-${{ env.NDK_VER }}-${{ hashFiles('android/make_deps.sh') }}
+          key: stk14-deps-arm64-${{ env.NDK_VER }}-${{ hashFiles('android/make_deps.sh') }}
 
       - name: Build APK
         working-directory: android

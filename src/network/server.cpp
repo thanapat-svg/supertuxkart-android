@@ -17,12 +17,10 @@
 
 #include "network/server.hpp"
 #include "config/player_manager.hpp"
-#include "config/user_config.hpp"
 #include "io/xml_node.hpp"
 #include "online/online_player_profile.hpp"
 #include "online/online_profile.hpp"
 #include "online/profile_manager.hpp"
-#include "network/crypto.hpp"
 #include "network/network_config.hpp"
 #include "network/socket_address.hpp"
 #include "states_screens/online/online_screen.hpp"
@@ -47,7 +45,6 @@ Server::Server(const XMLNode& server_info) : m_supports_encrytion(true)
     m_server_id = 0;
     m_current_players = 0;
     m_current_ai = 0;
-    m_bookmark_id = 0;
     m_max_players = 0;
     m_distance = 0.0f;
     m_server_mode = 0;
@@ -80,12 +77,6 @@ Server::Server(const XMLNode& server_info) : m_supports_encrytion(true)
     xml.get("private_port", &m_private_port);
     xml.get("password", &m_password_protected);
     xml.get("game_started", &m_game_started);
-    m_aes_gcm_128bit_tag = false;
-    xml.get("aes_gcm_128bit_tag", &m_aes_gcm_128bit_tag);
-#ifndef CRYPTO_AES_GCM_32BIT_TAG
-    if (!m_aes_gcm_128bit_tag)
-        m_supports_encrytion = false;
-#endif
     xml.get("distance", &m_distance);
     xml.get("country_code", &m_country_code);
     m_server_owner_name = L"-";
@@ -127,30 +118,6 @@ Server::Server(const XMLNode& server_info) : m_supports_encrytion(true)
         {
             return std::get<0>(a) < std::get<0>(b);
         });
-
-    std::string key = getBookmarkKey();
-    std::map<std::string, uint32_t>& bookmarks =
-        UserConfigParams::m_server_bookmarks;
-    if (bookmarks.find(key) != bookmarks.end())
-    {
-        std::map<std::string, uint32_t>& bookmarks_order =
-            UserConfigParams::m_server_bookmarks_order;
-        auto it = bookmarks_order.find(key);
-        if (it == bookmarks_order.end())
-        {
-            uint32_t max_id = 0;
-            for (auto& order : bookmarks_order)
-            {
-                if (order.second > max_id)
-                    max_id = order.second;
-            }
-            max_id += 1;
-            bookmarks_order[key] = max_id;
-            m_bookmark_id = max_id;
-        }
-        else
-            m_bookmark_id = it->second;
-    }
 
     // Show owner name as Official right now if official server hoster account
     m_official = false;
@@ -233,8 +200,7 @@ Server::Server(unsigned server_id, const core::stringw &name, int max_players,
     m_official = false;
     m_game_started = game_started;
     m_current_track = current_track;
-    m_current_ai = m_bookmark_id = 0;
-    m_aes_gcm_128bit_tag = false;
+    m_current_ai = 0;
 }   // server(server_id, ...)
 
 // ----------------------------------------------------------------------------

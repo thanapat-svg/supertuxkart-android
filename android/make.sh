@@ -16,15 +16,15 @@ export NDK_BUILD_SCRIPT="$DIRNAME/Android.mk"
 export CPU_CORE="-j$(($(nproc) + 1))"
 
 if [ -z "$STK_MIN_ANDROID_SDK" ]; then
-    export STK_MIN_ANDROID_SDK=21
+    export STK_MIN_ANDROID_SDK=16
 fi
 
 if [ -z "$STK_TARGET_ANDROID_SDK" ]; then
-    export STK_TARGET_ANDROID_SDK=35
+    export STK_TARGET_ANDROID_SDK=30
 fi
 
 if [ -z "$STK_NDK_VERSION" ]; then
-    export STK_NDK_VERSION="28.1.13356709"
+    export STK_NDK_VERSION=23.1.7779620
 fi
 
 export APP_NAME_RELEASE="SuperTuxKart"
@@ -242,13 +242,6 @@ if [ -d "$DIRNAME/assets/data" ]; then
     fi
 fi
 
-# Use `magick` when it's available
-if command -v magick > /dev/null; then
-    MAGICK='magick'
-else
-    MAGICK='convert'
-fi
-
 # Standalone toolchain
 if [ ! -f "$DIRNAME/obj/make_standalone_toolchain.stamp" ]; then
     echo "Creating standalone toolchain"
@@ -320,7 +313,7 @@ create_translation()
     CUR_LANG=$(basename -- "$PO" | cut -f 1 -d '.')
     # Skip english po file
     if [ "$CUR_LANG" = "en" ]; then
-        return
+        continue
     fi
     # Fix some difference in language code
     if [ "$CUR_LANG" = "he" ]; then
@@ -365,7 +358,7 @@ create_translation()
     fi
 }
 
-find "$DIRNAME/assets/data/po" -type f -name '*.po' | while read -r f; do create_translation "$f"; done
+find "$DIRNAME/assets/data/po" -type f -name '*.po' | while read f; do create_translation "$f"; done
 
 ADAPTIVE_ICON_FILE="$DIRNAME/res/drawable-anydpi-v26/icon.xml"
 
@@ -375,6 +368,9 @@ echo "  xmlns:android=\"http://schemas.android.com/apk/res/android\">" >> "$ADAP
 echo "    <background android:drawable=\"@drawable/icon_bg\" />"       >> "$ADAPTIVE_ICON_FILE"
 echo "    <foreground android:drawable=\"@drawable/icon_fg\" />"       >> "$ADAPTIVE_ICON_FILE"
 echo "</adaptive-icon>"                                                >> "$ADAPTIVE_ICON_FILE"
+
+sed -i "s/package=\".*\"/package=\"$PACKAGE_NAME\"/g" \
+       "$DIRNAME/AndroidManifest.xml"
 
 sed -i "s/package org.supertuxkart.*/package $PACKAGE_NAME;/g" \
        "$DIRNAME/src/main/java/STKEditText.java"
@@ -394,6 +390,12 @@ sed -i "s/package org.supertuxkart.*/package $PACKAGE_NAME;/g" \
 sed -i "s/import org.supertuxkart.*/import $PACKAGE_NAME.STKEditText;/g" \
        "$DIRNAME/src/main/java/SuperTuxKartActivity.java"
 
+sed -i "s/versionName=\".*\"/versionName=\"$PROJECT_VERSION\"/g" \
+       "$DIRNAME/AndroidManifest.xml"
+       
+sed -i "s/versionCode=\".*\"/versionCode=\"$PROJECT_CODE\"/g" \
+       "$DIRNAME/AndroidManifest.xml"
+
 cp -f "$DIRNAME/../lib/sdl2/android-project/app/src/main/java/org/libsdl/app/HIDDevice.java" \
        "$DIRNAME/src/main/java/"
 cp -f "$DIRNAME/../lib/sdl2/android-project/app/src/main/java/org/libsdl/app/HIDDeviceBLESteamController.java" \
@@ -410,39 +412,41 @@ cp -f "$DIRNAME/../lib/sdl2/android-project/app/src/main/java/org/libsdl/app/SDL
        "$DIRNAME/src/main/java/"
 cp -f "$DIRNAME/../lib/sdl2/android-project/app/src/main/java/org/libsdl/app/SDL.java" \
        "$DIRNAME/src/main/java/"
-cp -f "$DIRNAME/../lib/sdl2/android-project/app/src/main/java/org/libsdl/app/SDLSurface.java" \
-       "$DIRNAME/src/main/java/"
 
 cp "banner.png" "$DIRNAME/res/drawable/banner.png"
 cp "$APP_ICON" "$DIRNAME/res/drawable/icon.png"
-$MAGICK "$APP_ICON" -scale 48x48 "$DIRNAME/res/drawable-mdpi/icon.png"
-$MAGICK "$APP_ICON" -scale 72x72 "$DIRNAME/res/drawable-hdpi/icon.png"
-$MAGICK "$APP_ICON" -scale 96x96 "$DIRNAME/res/drawable-xhdpi/icon.png"
-$MAGICK "$APP_ICON" -scale 144x144 "$DIRNAME/res/drawable-xxhdpi/icon.png"
-$MAGICK "$APP_ICON" -scale 192x192 "$DIRNAME/res/drawable-xxxhdpi/icon.png"
+convert -scale 48x48 "$APP_ICON" "$DIRNAME/res/drawable-mdpi/icon.png"
+convert -scale 72x72 "$APP_ICON" "$DIRNAME/res/drawable-hdpi/icon.png"
+convert -scale 96x96 "$APP_ICON" "$DIRNAME/res/drawable-xhdpi/icon.png"
+convert -scale 144x144 "$APP_ICON" "$DIRNAME/res/drawable-xxhdpi/icon.png"
+convert -scale 192x192 "$APP_ICON" "$DIRNAME/res/drawable-xxxhdpi/icon.png"
 
-#$MAGICK "$APP_ICON_ADAPTIVE_BG" -scale 108x108 "$DIRNAME/res/drawable-mdpi/icon_bg.png"
-#$MAGICK "$APP_ICON_ADAPTIVE_BG" -scale 162x162 "$DIRNAME/res/drawable-hdpi/icon_bg.png"
-#$MAGICK "$APP_ICON_ADAPTIVE_BG" -scale 216x216 "$DIRNAME/res/drawable-xhdpi/icon_bg.png"
-#$MAGICK "$APP_ICON_ADAPTIVE_BG" -scale 324x324 "$DIRNAME/res/drawable-xxhdpi/icon_bg.png"
-#$MAGICK "$APP_ICON_ADAPTIVE_BG" -scale 432x432 "$DIRNAME/res/drawable-xxxhdpi/icon_bg.png"
+#convert -scale 108x108 "$APP_ICON_ADAPTIVE_BG" "$DIRNAME/res/drawable-mdpi/icon_bg.png"
+#convert -scale 162x162 "$APP_ICON_ADAPTIVE_BG" "$DIRNAME/res/drawable-hdpi/icon_bg.png"
+#convert -scale 216x216 "$APP_ICON_ADAPTIVE_BG" "$DIRNAME/res/drawable-xhdpi/icon_bg.png"
+#convert -scale 324x324 "$APP_ICON_ADAPTIVE_BG" "$DIRNAME/res/drawable-xxhdpi/icon_bg.png"
+#convert -scale 432x432 "$APP_ICON_ADAPTIVE_BG" "$DIRNAME/res/drawable-xxxhdpi/icon_bg.png"
 
-$MAGICK xc:"rgba(255,255,255,255)" -scale 108x108 "$DIRNAME/res/drawable-mdpi/icon_bg.png"
-$MAGICK xc:"rgba(255,255,255,255)" -scale 162x162 "$DIRNAME/res/drawable-hdpi/icon_bg.png"
-$MAGICK xc:"rgba(255,255,255,255)" -scale 216x216 "$DIRNAME/res/drawable-xhdpi/icon_bg.png"
-$MAGICK xc:"rgba(255,255,255,255)" -scale 324x324 "$DIRNAME/res/drawable-xxhdpi/icon_bg.png"
-$MAGICK xc:"rgba(255,255,255,255)" -scale 432x432 "$DIRNAME/res/drawable-xxxhdpi/icon_bg.png"
+convert -scale 108x108 xc:"rgba(255,255,255,255)" "$DIRNAME/res/drawable-mdpi/icon_bg.png"
+convert -scale 162x162 xc:"rgba(255,255,255,255)" "$DIRNAME/res/drawable-hdpi/icon_bg.png"
+convert -scale 216x216 xc:"rgba(255,255,255,255)" "$DIRNAME/res/drawable-xhdpi/icon_bg.png"
+convert -scale 324x324 xc:"rgba(255,255,255,255)" "$DIRNAME/res/drawable-xxhdpi/icon_bg.png"
+convert -scale 432x432 xc:"rgba(255,255,255,255)" "$DIRNAME/res/drawable-xxxhdpi/icon_bg.png"
 
-$MAGICK "$APP_ICON_ADAPTIVE_FG" -scale 108x108 "$DIRNAME/res/drawable-mdpi/icon_fg.png"
-$MAGICK "$APP_ICON_ADAPTIVE_FG" -scale 162x162 "$DIRNAME/res/drawable-hdpi/icon_fg.png"
-$MAGICK "$APP_ICON_ADAPTIVE_FG" -scale 216x216 "$DIRNAME/res/drawable-xhdpi/icon_fg.png"
-$MAGICK "$APP_ICON_ADAPTIVE_FG" -scale 324x324 "$DIRNAME/res/drawable-xxhdpi/icon_fg.png"
-$MAGICK "$APP_ICON_ADAPTIVE_FG" -scale 432x432 "$DIRNAME/res/drawable-xxxhdpi/icon_fg.png"
+convert -scale 108x108 "$APP_ICON_ADAPTIVE_FG" "$DIRNAME/res/drawable-mdpi/icon_fg.png"
+convert -scale 162x162 "$APP_ICON_ADAPTIVE_FG" "$DIRNAME/res/drawable-hdpi/icon_fg.png"
+convert -scale 216x216 "$APP_ICON_ADAPTIVE_FG" "$DIRNAME/res/drawable-xhdpi/icon_fg.png"
+convert -scale 324x324 "$APP_ICON_ADAPTIVE_FG" "$DIRNAME/res/drawable-xxhdpi/icon_fg.png"
+convert -scale 432x432 "$APP_ICON_ADAPTIVE_FG" "$DIRNAME/res/drawable-xxxhdpi/icon_fg.png"
+
+if [ -f "/usr/lib/jvm/java-8-openjdk-amd64/bin/java" ]; then
+    export JAVA_HOME="/usr/lib/jvm/java-8-openjdk-amd64"
+    export PATH=$JAVA_HOME/bin:$PATH
+fi
 
 export ANDROID_HOME="$SDK_PATH"
 ./gradlew -Pcompile_sdk_version="$COMPILE_SDK_VERSION"   \
           -Pmin_sdk_version="$STK_MIN_ANDROID_SDK"       \
-          -Pcompile_sdk_version="$STK_TARGET_ANDROID_SDK"\
           -Ptarget_sdk_version="$STK_TARGET_ANDROID_SDK" \
           -Pstorepass="$STK_STOREPASS"                   \
           -Pkeystore="$STK_KEYSTORE"                     \
@@ -450,15 +454,11 @@ export ANDROID_HOME="$SDK_PATH"
           -Pndk_version="$STK_NDK_VERSION"               \
           -Pcompile_arch="$COMPILE_ARCH"                 \
           -Pcpu_core="$CPU_CORE"                         \
-          -Ppackage_name="$PACKAGE_NAME"                 \
-          -Pversion_name="$PROJECT_VERSION"              \
-          -Pversion_code="$PROJECT_CODE"                 \
           $GRADLE_BUILD_TYPE
 
 if [ "$GRADLE_BUILD_TYPE" = "assembleRelease" ]; then
 ./gradlew -Pcompile_sdk_version="$COMPILE_SDK_VERSION"   \
           -Pmin_sdk_version="$STK_MIN_ANDROID_SDK"       \
-          -Pcompile_sdk_version="$STK_TARGET_ANDROID_SDK"\
           -Ptarget_sdk_version="$STK_TARGET_ANDROID_SDK" \
           -Pstorepass="$STK_STOREPASS"                   \
           -Pkeystore="$STK_KEYSTORE"                     \
@@ -466,9 +466,6 @@ if [ "$GRADLE_BUILD_TYPE" = "assembleRelease" ]; then
           -Pndk_version="$STK_NDK_VERSION"               \
           -Pcompile_arch="$COMPILE_ARCH"                 \
           -Pcpu_core="$CPU_CORE"                         \
-          -Ppackage_name="$PACKAGE_NAME"                 \
-          -Pversion_name="$PROJECT_VERSION"              \
-          -Pversion_code="$PROJECT_CODE"                 \
           "bundleRelease"
 fi
 

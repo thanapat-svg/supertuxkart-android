@@ -160,6 +160,8 @@ source/Irrlicht/CParticleSystemSceneNode.cpp
 source/Irrlicht/CReadFile.cpp
 source/Irrlicht/CSceneCollisionManager.cpp
 source/Irrlicht/CSceneManager.cpp
+source/Irrlicht/CSceneNodeAnimatorCameraFPS.cpp
+source/Irrlicht/CSceneNodeAnimatorCameraMaya.cpp
 source/Irrlicht/CSceneNodeAnimatorCollisionResponse.cpp
 source/Irrlicht/CSceneNodeAnimatorDelete.cpp
 source/Irrlicht/CSceneNodeAnimatorFlyCircle.cpp
@@ -301,6 +303,8 @@ source/Irrlicht/CParticleSystemSceneNode.h
 source/Irrlicht/CReadFile.h
 source/Irrlicht/CSceneCollisionManager.h
 source/Irrlicht/CSceneManager.h
+source/Irrlicht/CSceneNodeAnimatorCameraFPS.h
+source/Irrlicht/CSceneNodeAnimatorCameraMaya.h
 source/Irrlicht/CSceneNodeAnimatorCollisionResponse.h
 source/Irrlicht/CSceneNodeAnimatorDelete.h
 source/Irrlicht/CSceneNodeAnimatorFlyCircle.h
@@ -472,6 +476,8 @@ include/irrXML.h
 include/ISceneCollisionManager.h
 include/ISceneLoader.h
 include/ISceneManager.h
+include/ISceneNodeAnimatorCameraFPS.h
+include/ISceneNodeAnimatorCameraMaya.h
 include/ISceneNodeAnimatorCollisionResponse.h
 include/ISceneNodeAnimatorFactory.h
 include/ISceneNodeAnimator.h
@@ -542,16 +548,6 @@ if(IOS)
 
     set_source_files_properties(source/Irrlicht/CIrrDeviceiOS.mm PROPERTIES COMPILE_FLAGS "-x objective-c++ -O3  -fno-rtti")
     set_source_files_properties(source/Irrlicht/CIrrDeviceiOS.mm PROPERTIES LANGUAGE C)
-endif()
-
-if (NOT SERVER_ONLY AND APPLE AND NOT IOS)
-    set(IRRLICHT_SOURCES
-        ${IRRLICHT_SOURCES}
-        source/Irrlicht/MacOS.mm)
-
-    set_source_files_properties(source/Irrlicht/MacOS.mm PROPERTIES COMPILE_FLAGS "-x objective-c++ -O3  -fno-rtti")
-    set_source_files_properties(source/Irrlicht/MacOS.mm PROPERTIES LANGUAGE C)
-
 endif()
 
 add_library(stkirrlicht STATIC ${IRRLICHT_SOURCES})

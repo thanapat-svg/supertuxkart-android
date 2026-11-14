@@ -68,8 +68,6 @@ private:
     /** Pointer to the texture. */
     video::ITexture *m_texture;
 
-    std::array<video::ITexture*, 4> m_vk_textures;
-
     /** Name of the texture. */
     std::string      m_texname;
 
@@ -143,7 +141,7 @@ private:
     /** Particles to show on touch */
     std::string      m_collision_particles;
 
-    /**
+    /** 
     * Associated with m_mirror_axis_when_reverse, to avoid mirroring the same material twice
     * (setAllMaterialFlags can be called multiple times on the same mesh buffer)
     */
@@ -204,8 +202,7 @@ private:
     std::string      m_colorization_mask;
 
     void  init    ();
-    void  install (std::function<void(video::IImage*)> image_mani = nullptr,
-                   video::SMaterial* m = NULL);
+    void  install (std::function<void(video::IImage*)> image_mani = nullptr);
     void  initCustomSFX(const XMLNode *sfx);
     void  initParticlesEffect(const XMLNode *node);
 
@@ -213,7 +210,7 @@ private:
     std::string      m_shader_name;
     std::string      m_uv_two_tex;
     // Full path for textures in sp shader
-    std::array<std::string, 6> m_sampler_path;
+    std::string      m_sampler_path[6];
     std::string      m_container_id;
     void loadContainerId();
 
@@ -323,7 +320,7 @@ public:
      * \return The particles to use, or NULL if none. */
     const ParticleKind* getParticlesWhen(ParticleConditions cond) const
     {
-        return m_particles_effects[cond];
+        return m_particles_effects[cond]; 
     }   // getParticlesWhen
     // ------------------------------------------------------------------------
     /** Returns true if a kart falling over this kind of material triggers

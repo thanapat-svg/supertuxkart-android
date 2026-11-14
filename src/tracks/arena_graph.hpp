@@ -22,7 +22,6 @@
 #include "tracks/graph.hpp"
 #include "utils/cpp2011.hpp"
 
-#include <cstdint>
 #include <set>
 
 class ArenaNode;

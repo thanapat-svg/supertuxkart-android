@@ -81,7 +81,7 @@ private:
         /** Tests if two collision pairs involve the same objects. This test
          *  is simplified (i.e. no test if p.b==a and p.a==b) since the
          *  elements are sorted. */
-        bool operator==(const CollisionPair &p) const
+        bool operator==(const CollisionPair &p)
         {
             return (p.m_up[0]==m_up[0] && p.m_up[1]==m_up[1]);
         }   // operator==
@@ -165,7 +165,7 @@ public:
     void  removeBody       (btRigidBody* b) {m_dynamics_world->removeRigidBody(b);}
     void  KartKartCollision(AbstractKart *ka, const Vec3 &contact_point_a,
                             AbstractKart *kb, const Vec3 &contact_point_b);
-    void  update           ();
+    void  update           (int ticks);
     void  draw             ();
     STKDynamicsWorld*
           getPhysicsWorld  () const {return m_dynamics_world;}

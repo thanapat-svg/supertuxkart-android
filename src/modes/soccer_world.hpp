@@ -23,6 +23,7 @@
 #include "states_screens/race_gui_base.hpp"
 #include "karts/abstract_kart.hpp"
 
+#include <IMesh.h>
 #include <string>
 
 class AbstractKart;

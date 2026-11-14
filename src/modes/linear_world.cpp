@@ -133,7 +133,7 @@ void LinearWorld::reset(bool restart)
     // be increased to avoid negative values in estimateFinishTimeForKart
     // Increase this value somewhat in case that a kart drivess/slides
     // backwards a little bit at start.
-    m_distance_increase = Track::getCurrentTrack()->getTrackLength()
+    m_distance_increase = Track::getCurrentTrack()->getTrackLength() 
                         - m_distance_increase + 5.0f;
 
     if(m_distance_increase<0) m_distance_increase = 1.0f;  // shouldn't happen
@@ -313,7 +313,7 @@ void LinearWorld::updateGraphics(float dt)
 
     const GUIEngine::GameState gamestate = StateManager::get()->getGameState();
     
-    if (gamestate == GUIEngine::GAME &&
+    if (gamestate == GUIEngine::GAME && 
         !GUIEngine::ModalDialog::isADialogActive())
     {
         const unsigned int kart_amount = getNumKarts();
@@ -406,7 +406,7 @@ void LinearWorld::newLap(unsigned int kart_index)
         kart_info.m_ticks_at_last_lap=getTimeTicks();
         kart_info.m_finished_laps++;
         m_kart_info[kart_index].m_overall_distance =
-              m_kart_info[kart_index].m_finished_laps
+              m_kart_info[kart_index].m_finished_laps 
             * Track::getCurrentTrack()->getTrackLength()
             + getDistanceDownTrackForKart(kart->getWorldKartId(), true);
     }
@@ -421,20 +421,17 @@ void LinearWorld::newLap(unsigned int kart_index)
         }
         if(!m_last_lap_sfx_played && lap_count > 1)
         {
-            if (UserConfigParams::m_sfx)
+            if (UserConfigParams::m_music)
             {
                 m_last_lap_sfx->play();
                 m_last_lap_sfx_played = true;
                 m_last_lap_sfx_playing = true;
 
-                // Temporarily reduce the volume of the main music
-                // So that the last lap SFX can be heard
-                if(UserConfigParams::m_music &&
-                    music_manager->getCurrentMusic())
+                // In case that no music is defined
+                if(music_manager->getCurrentMusic() &&
+                    music_manager->getMasterMusicVolume() > 0.2f)
                 {
-                    // The parameter taken by SetTemporaryVolume is a factor
-                    // that gets multiplied with the master volume
-                    music_manager->setTemporaryVolume(0.5f);
+                    music_manager->setTemporaryVolume(0.2f);
                 }
             }
             else
@@ -442,14 +439,6 @@ void LinearWorld::newLap(unsigned int kart_index)
                 m_last_lap_sfx_played = true;
                 m_last_lap_sfx_playing = false;
             }
-        }
-        // Switch on faster music if not already done so, if the
-        // first kart is doing its last lap.
-        if(!m_faster_music_active &&
-            useFastMusicNearEnd())
-        {
-            music_manager->switchToFastMusic();
-            m_faster_music_active=true;
         }
     }
     else if (raceHasLaps() && kart_info.m_finished_laps > 0 &&
@@ -900,6 +889,7 @@ void LinearWorld::updateRacePosition()
             setKartPosition(i, kart->getPosition());
             continue;
         }
+        KartInfo& kart_info = m_kart_info[i];
 
         int p = 1 ;
 
@@ -962,6 +952,17 @@ void LinearWorld::updateRacePosition()
             assert(false);
         }
 #endif
+
+        // Switch on faster music if not already done so, if the
+        // first kart is doing its last lap.
+        if(!m_faster_music_active                                  &&
+            p == 1                                                 &&
+            kart_info.m_finished_laps == RaceManager::get()->getNumLaps() - 1 &&
+            useFastMusicNearEnd()                                       )
+        {
+            music_manager->switchToFastMusic();
+            m_faster_music_active=true;
+        }
     }   // for i<kart_amount
 
     // Define this to get a detailled analyses each time a race position
@@ -1044,7 +1045,7 @@ void LinearWorld::updateRacePosition()
  */
 void LinearWorld::checkForWrongDirection(unsigned int i, float dt)
 {
-    if (!m_karts[i]->getController()->isLocalPlayerController())
+    if (!m_karts[i]->getController()->isLocalPlayerController()) 
         return;
 
     KartInfo &ki = m_kart_info[i];

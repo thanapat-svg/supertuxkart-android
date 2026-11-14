@@ -58,7 +58,6 @@ public:
     {
         for (unsigned n = 0; n < m_listeners.size(); n++)
             m_listeners[n].onTextUpdated();
-        GUIEngine::setWithinATextBox(true);
     }
 
     bool handleEnterPressed()

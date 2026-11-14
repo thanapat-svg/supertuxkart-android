@@ -29,12 +29,14 @@
 #include "utils/vec3.hpp"
 
 #include <vector3d.h>
+#include <IAnimatedMeshSceneNode.h>
 
 #include <memory>
 #include <limits>
 #include <string>
 
 class SFXBase;
+class ParticleEmitter;
 class PhysicalObject;
 class ThreeDAnimation;
 class ModelDefinitionLoader;
@@ -43,13 +45,9 @@ class STKInstancedSceneNode;
 class XMLNode;
 class TrackObject;
 
-#ifndef SERVER_ONLY
-class ParticleEmitter;
-#endif
-
 namespace irr
 {
-    namespace scene { class IAnimatedMesh; class IMesh; class IMeshSceneNode; class ISceneNode; }
+    namespace scene { class IAnimatedMesh; class IMeshSceneNode; class ISceneNode; }
 }
 using namespace irr;
 
@@ -87,13 +85,12 @@ public:
     // ------------------------------------------------------------------------
 
     virtual void reset() {}
-    virtual void onStart() {}
     virtual void setEnable(bool enabled)
     {
         Log::warn("TrackObjectPresentation", "setEnable unimplemented for this presentation type");
     }
     virtual void updateGraphics(float dt) {}
-    virtual bool update(float dt) { return false; }
+    virtual void update(float dt) {}
     virtual void move(const core::vector3df& xyz, const core::vector3df& hpr,
         const core::vector3df& scale, bool isAbsoluteCoord) {}
 
@@ -104,7 +101,7 @@ public:
     /** Returns a copy of the initial position. Note this function does not
      *  return a const reference, since some classes overwrite it this way. */
     virtual const core::vector3df getAbsolutePosition() const
-    {
+    { 
         return m_init_xyz;
     }   // getAbsolutePosition
     // ------------------------------------------------------------------------
@@ -197,19 +194,18 @@ class TrackObjectPresentationLibraryNode : public TrackObjectPresentationSceneNo
     TrackObject* m_parent;
     using TrackObjectPresentationSceneNode::move;
     std::string m_name;
-private:
-    void onReset();
+    bool m_start_executed, m_reset_executed;
 public:
     TrackObjectPresentationLibraryNode(TrackObject* parent,
         const XMLNode& xml_node,
         ModelDefinitionLoader& model_def_loader);
     virtual ~TrackObjectPresentationLibraryNode();
+    virtual void update(float dt) OVERRIDE;
     virtual void reset() OVERRIDE
     {
+        m_reset_executed = false;
         TrackObjectPresentationSceneNode::reset();
-        onReset();
     }
-    virtual void onStart() OVERRIDE;
     virtual void move(const core::vector3df& xyz, const core::vector3df& hpr,
         const core::vector3df& scale, bool isAbsoluteCoord) OVERRIDE;
 };   // TrackObjectPresentationLibraryNode
@@ -260,9 +256,9 @@ public:
 
     TrackObjectPresentationMesh(const std::string& model_file,
                                 const core::vector3df& xyz,
-                                const core::vector3df& hpr,
+                                const core::vector3df& hpr, 
                                 const core::vector3df& scale);
-    TrackObjectPresentationMesh(scene::IAnimatedMesh* mesh,
+    TrackObjectPresentationMesh(scene::IAnimatedMesh* mesh, 
                                 const core::vector3df& xyz,
                                 const core::vector3df& hpr,
                                 const core::vector3df& scale);
@@ -340,9 +336,7 @@ public:
 class TrackObjectPresentationParticles : public TrackObjectPresentationSceneNode
 {
 private:
-#ifndef SERVER_ONLY
     ParticleEmitter* m_emitter;
-#endif
     LODNode* m_lod_emitter_node;
     std::string m_trigger_condition;
     bool m_delayed_stop;
@@ -417,7 +411,7 @@ public:
     void onTriggerItemApproached(int kart_id);
     // ------------------------------------------------------------------------
     /** Reset the trigger (i.e. sets it to active again). */
-    virtual void reset() OVERRIDE
+    virtual void reset() OVERRIDE 
                              { m_reenable_timeout = StkTime::getMonoTimeMs(); }
     // ------------------------------------------------------------------------
     /** Sets the trigger to be enabled or disabled. getMonoTimeMs is used to

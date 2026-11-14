@@ -24,8 +24,7 @@
 #include "config/player_manager.hpp"
 #include "challenges/unlock_manager.hpp"
 #include "config/user_config.hpp"
-#include "graphics/camera/camera.hpp"
-#include "graphics/camera/camera_normal.hpp"
+#include "graphics/camera.hpp"
 #include "graphics/central_settings.hpp"
 #include "graphics/irr_driver.hpp"
 #include "graphics/material.hpp"
@@ -53,7 +52,6 @@
 #include "karts/kart_rewinder.hpp"
 #include "main_loop.hpp"
 #include "modes/overworld.hpp"
-#include "modes/tutorial_utils.hpp"
 #include "network/child_loop.hpp"
 #include "network/protocols/client_lobby.hpp"
 #include "network/network_config.hpp"
@@ -84,8 +82,12 @@
 #include "utils/translation.hpp"
 #include "utils/string_utils.hpp"
 
-#include <IrrlichtDevice.h>
-#include <ISceneManager.h>
+#include <algorithm>
+#include <assert.h>
+#include <ctime>
+#include <sstream>
+#include <stdexcept>
+
 
 World* World::m_world[PT_COUNT];
 
@@ -125,6 +127,8 @@ World* World::m_world[PT_COUNT];
  */
 World::World() : WorldStatus()
 {
+    if (m_process_type == PT_MAIN)
+        GUIEngine::getDevice()->setResizable(true);
     RewindManager::setEnable(NetworkConfig::get()->isNetworking());
 #ifdef DEBUG
     m_magic_number = 0xB01D6543;
@@ -138,7 +142,6 @@ World::World() : WorldStatus()
     m_schedule_exit_race = false;
     m_schedule_tutorial  = false;
     m_is_network_world   = false;
-    m_restart_camera        = false;
 
     m_stop_music_when_dialog_open = true;
 
@@ -227,13 +230,6 @@ void World::init()
     main_loop->renderGUI(6998);
     if (gk > 0)
     {
-        unsigned player_count = StateManager::get()->getActivePlayers().size();
-        for (unsigned p = 0; p < player_count; p++)
-        {
-            StateManager::ActivePlayer* pl = StateManager::get()->getActivePlayer(p);
-            if (pl)
-                pl->setKart(NULL);
-        }
         ReplayPlay::get()->load();
         for (unsigned int k = 0; k < gk; k++)
             m_karts.push_back(ReplayPlay::get()->getGhostKart(k));
@@ -409,11 +405,6 @@ void World::reset(bool restart)
     // explosion animation will be created
     ProjectileManager::get()->cleanup();
     resetAllKarts();
-
-    if (restart)
-    {
-        m_restart_camera = true;
-    }
     // Note: track reset must be called after all karts exist, since check
     // objects need to allocate data structures depending on the number
     // of karts.
@@ -483,11 +474,6 @@ std::shared_ptr<AbstractKart> World::createKart
     }
 
     int position           = index+1;
-
-    if (index - gk < 0)
-        Log::error("World",
-            "Attempt to create a kart with a ghost_kart index.");
-
     btTransform init_pos   = getStartTransform(index - gk);
     std::shared_ptr<AbstractKart> new_kart;
     if (RewindManager::get()->isEnabled())
@@ -621,6 +607,7 @@ World::~World()
 {
     if (m_process_type == PT_MAIN)
     {
+        GUIEngine::getDevice()->setResizable(false);
         material_manager->unloadAllTextures();
     }
 
@@ -796,7 +783,6 @@ void World::terminateRace()
 
     if (!GUIEngine::isNoGraphics())
     {
-#ifndef SERVER_ONLY
         RaceResultGUI* results = RaceResultGUI::getInstance();
         m_race_gui = results;
         if (best_highscore_rank > 0)
@@ -804,7 +790,6 @@ void World::terminateRace()
         else
             results->clearHighscores();
         results->push();
-#endif
     }
 
     WorldStatus::terminateRace();
@@ -895,9 +880,7 @@ void World::resetAllKarts()
             (*i)->getNormal() * -g : Vec3(0, -g, 0));
     }
     for(int i=0; i<stk_config->getPhysicsFPS(); i++)
-    {
-        Physics::get()->update();
-    }
+        Physics::get()->update(1);
 
     for ( KartList::iterator i=m_karts.begin(); i!=m_karts.end(); i++)
     {
@@ -909,8 +892,7 @@ void World::resetAllKarts()
     {
         for(unsigned int i=0; i<Camera::getNumCameras(); i++)
         {
-            Camera* cam = Camera::getCamera(i);
-            cam->setInitialTransform();
+            Camera::getCamera(i)->setInitialTransform();
         }
     }
 }   // resetAllKarts
@@ -957,32 +939,25 @@ void World::moveKartTo(AbstractKart* kart, const btTransform &transform)
     // This will set the physics transform
     Track::getCurrentTrack()->findGround(kart);
     Track::getCurrentTrack()->getCheckManager()->resetAfterKartMove(kart);
+
 }   // moveKartTo
 
 // ----------------------------------------------------------------------------
 void World::updateTimeTargetSound()
 {
-    if (RewindManager::get()->isRewinding())
-        return;
-
-    float time_left = getTime();;
-    if (RaceManager::get()->hasTimeTarget())
+    if (RaceManager::get()->hasTimeTarget() && !RewindManager::get()->isRewinding())
     {
+        float time_left = getTime();
         float time_target = RaceManager::get()->getTimeTarget();
         // In linear mode, the internal time still counts up even when displayed down.
         if (RaceManager::get()->isLinearRaceMode())
             time_left = time_target - time_left;
-    }
-    else if (!RaceManager::get()->isFollowMode())
-    {
-        return; // No Time Target and no FTL
-    }
 
-    if (time_left <= (RaceManager::get()->isFollowMode() ? 3 : 5) &&
-            getTimeTicks() % stk_config->time2Ticks(1.0f) == 0 &&
-            !World::getWorld()->isRaceOver() && time_left > 0)
-    {
-        SFXManager::get()->quickSound("pre_start_race");
+        if (time_left <= 5 && getTimeTicks() % stk_config->time2Ticks(1.0f) == 0 &&
+                !World::getWorld()->isRaceOver() && time_left > 0)
+        {
+                SFXManager::get()->quickSound("pre_start_race");
+        }
     }
 }  // updateTimeTargetSound
 
@@ -1029,6 +1004,7 @@ void World::updateWorld(int ticks)
     assert(m_magic_number == 0xB01D6543);
 #endif
 
+
     if (m_schedule_pause)
     {
         pause(m_scheduled_pause_phase);
@@ -1041,11 +1017,9 @@ void World::updateWorld(int ticks)
     }
 
     // Don't update world if a menu is shown or the race is over.
-    // Exceptions : - Networking (local pause doesn't affect the server or other players)
-    //              - Benchmarking (a pause would mess up measurements)
-    if ((getPhase() == FINISH_PHASE) ||
-        ((getPhase() == IN_GAME_MENU_PHASE) &&
-        (!NetworkConfig::get()->isNetworking() || !RaceManager::get()->isBenchmarking())))
+    if (getPhase() == FINISH_PHASE ||
+        (!NetworkConfig::get()->isNetworking() &&
+        getPhase() == IN_GAME_MENU_PHASE))
         return;
 
     try
@@ -1079,8 +1053,41 @@ void World::updateWorld(int ticks)
             if (m_schedule_tutorial)
             {
                 m_schedule_tutorial = false;
+                RaceManager::get()->setNumPlayers(1);
+                RaceManager::get()->setMajorMode (RaceManager::MAJOR_MODE_SINGLE);
+                RaceManager::get()->setMinorMode (RaceManager::MINOR_MODE_TUTORIAL);
+                RaceManager::get()->setNumKarts( 1 );
+                RaceManager::get()->setTrack( "tutorial" );
+                RaceManager::get()->setDifficulty(RaceManager::DIFFICULTY_EASY);
+                RaceManager::get()->setReverseTrack(false);
+
+                // Use keyboard 0 by default (FIXME: let player choose?)
+                InputDevice* device = input_manager->getDeviceManager()->getKeyboard(0);
+
+                // Create player and associate player with keyboard
+                StateManager::get()->createActivePlayer(PlayerManager::getCurrentPlayer(),
+                                                        device);
+
+                if (!kart_properties_manager->getKart(UserConfigParams::m_default_kart))
+                {
+                    Log::warn("[World]",
+                              "Cannot find kart '%s', will revert to default.",
+                              UserConfigParams::m_default_kart.c_str());
+                    UserConfigParams::m_default_kart.revertToDefaults();
+                }
+                RaceManager::get()->setPlayerKart(0, UserConfigParams::m_default_kart);
+
+                // ASSIGN should make sure that only input from assigned devices
+                // is read.
+                input_manager->getDeviceManager()->setAssignMode(ASSIGN);
+                input_manager->getDeviceManager()
+                    ->setSinglePlayer( StateManager::get()->getActivePlayer(0) );
+
                 delete this;
-                TutorialUtils::startTutorial(true /*from overworld*/);
+
+                StateManager::get()->enterGameState();
+                RaceManager::get()->setupPlayerKartInfo();
+                RaceManager::get()->startNew(true);
             }
             else
             {
@@ -1175,28 +1182,18 @@ void World::update(int ticks)
     }
 #endif
 
-    if (m_restart_camera)
-    {
-        m_restart_camera = false;
-        for(unsigned int i=0; i<Camera::getNumCameras(); i++)
-        {
-            Camera* cam = Camera::getCamera(i);
-            dynamic_cast<CameraNormal*>(cam)->restart();
-        }
-    }
-
-    PROFILER_PUSH_CPU_MARKER("- World::update (sub-updates)", 0x20, 0x7F, 0x00);
+    PROFILER_PUSH_CPU_MARKER("World::update (sub-updates)", 0x20, 0x7F, 0x00);
     WorldStatus::update(ticks);
     PROFILER_POP_CPU_MARKER();
-    PROFILER_PUSH_CPU_MARKER("- World::update (RewindManager)", 0x20, 0x7F, 0x40);
+    PROFILER_PUSH_CPU_MARKER("World::update (RewindManager)", 0x20, 0x7F, 0x40);
     RewindManager::get()->update(ticks);
     PROFILER_POP_CPU_MARKER();
 
-    PROFILER_PUSH_CPU_MARKER("- World::update (Track object manager)", 0x20, 0x7F, 0x40);
+    PROFILER_PUSH_CPU_MARKER("World::update (Track object manager)", 0x20, 0x7F, 0x40);
     Track::getCurrentTrack()->getTrackObjectManager()->update(stk_config->ticks2Time(ticks));
     PROFILER_POP_CPU_MARKER();
 
-    PROFILER_PUSH_CPU_MARKER("- World::update (Kart::update)", 0x40, 0x7F, 0x00);
+    PROFILER_PUSH_CPU_MARKER("World::update (Kart::upate)", 0x40, 0x7F, 0x00);
 
     // Update all the karts. This in turn will also update the controller,
     // which causes all AI steering commands set. So in the following
@@ -1215,17 +1212,12 @@ void World::update(int ticks)
     PROFILER_POP_CPU_MARKER();
     if(RaceManager::get()->isRecordingRace()) ReplayRecorder::get()->update(ticks);
 
-    PROFILER_PUSH_CPU_MARKER("- World::update (projectiles)", 0xa0, 0x7F, 0x00);
+    PROFILER_PUSH_CPU_MARKER("World::update (projectiles)", 0xa0, 0x7F, 0x00);
     ProjectileManager::get()->update(ticks);
     PROFILER_POP_CPU_MARKER();
 
-    PROFILER_PUSH_CPU_MARKER("- World::update (physics)", 0xa0, 0x7F, 0x00);
-    for (int i=0 ; i < ticks ; i++)
-    {
-        // Physics update only ever does 1 tick at once
-        // Note that world update isn't really supposed to do more than one either
-        Physics::get()->update();
-    }
+    PROFILER_PUSH_CPU_MARKER("World::update (physics)", 0xa0, 0x7F, 0x00);
+    Physics::get()->update(ticks);
     PROFILER_POP_CPU_MARKER();
 
     PROFILER_POP_CPU_MARKER();
@@ -1289,13 +1281,14 @@ Highscores* World::getGPHighscores() const
 }
 
 // ----------------------------------------------------------------------------
-/** Called at the end of a race.
- * Submits the valid new times through the addHighscore functions, which then handles
- * checking if the new times are worth of a highscore and saving them.
- * The best highscore rank is transmitted to highlight the best new highscore in the GUI.
+/** Called at the end of a race. Checks if the current times are worth a new
+ *  score, if so it notifies the HighscoreManager so the new score is added
+ *  and saved.
  */
 void World::updateHighscores(int* best_highscore_rank)
 {
+    *best_highscore_rank = -1;
+
     if(!m_use_highscores) return;
 
     // Add times to highscore list. First compute the order of karts,
@@ -1323,6 +1316,7 @@ void World::updateHighscores(int* best_highscore_rank)
         {
             // no kart claimed to be in this position, most likely means
             // the kart location data is wrong
+
 #ifdef DEBUG
             Log::error("[World]", "Incorrect kart positions:");
             for (unsigned int i=0; i<m_karts.size(); i++ )
@@ -1345,49 +1339,39 @@ void World::updateHighscores(int* best_highscore_rank)
         Kart *k = (Kart*)m_karts[index[pos]].get();
 
         Highscores* highscores = getHighscores();
-        float highscore_value = RaceManager::get()->isLapTrialMode() ? static_cast<float>(getFinishedLapsOfKart(index[pos]))
-                                                                     : k->getFinishTime();
-        // The player is a local player, so there is a name:
-        int highscore_rank = highscores->addData(k->getIdent(), k->getController()->getName(), highscore_value);
 
-        if (highscore_rank > 0 && (*best_highscore_rank == -1 ||
-                                    highscore_rank < *best_highscore_rank))
+        int highscore_rank = 0;
+        // The player is a local player, so there is a name:
+        if (RaceManager::get()->isLapTrialMode())
         {
-            *best_highscore_rank = highscore_rank;
+            highscore_rank = highscores->addData(k->getIdent(),
+                                                 k->getController()->getName(),
+                                                 static_cast<float>(getFinishedLapsOfKart(index[pos])));
+        }
+        else
+        {
+            highscore_rank = highscores->addData(k->getIdent(),
+                                                 k->getController()->getName(),
+                                                 k->getFinishTime()    );
+        }
+        
+
+        if (highscore_rank > 0)
+        {
+            if (*best_highscore_rank == -1 ||
+                highscore_rank < *best_highscore_rank)
+            {
+                *best_highscore_rank = highscore_rank;
+            }
+
+            Highscores::setSortOrder(Highscores::SO_DEFAULT);
+            highscore_manager->sortHighscores(false);
+
+            highscore_manager->saveHighscores();
         }
     } // next position
-
-    // Handle GP highscores
-    if (RaceManager::get()->getMajorMode() == RaceManager::MAJOR_MODE_GRAND_PRIX &&
-        RaceManager::get()->getNumOfTracks() == RaceManager::get()->getTrackNumber() + 1 &&
-        !RaceManager::get()->getGrandPrix().isRandomGP() &&
-        RaceManager::get()->getSkippedTracksInGP() == 0)
-    {
-        std::string gp_name = RaceManager::get()->getGrandPrix().getId();
-
-        for (unsigned int kart_id = 0; kart_id < RaceManager::get()->getNumberOfKarts(); kart_id++)
-        {
-            // Only record times for local player karts and only if
-            // they finished the race
-            if (!m_karts[kart_id]->getController()->isLocalPlayerController() ||
-                !m_karts[kart_id]->hasFinishedRace() ||
-                m_karts[kart_id]->isEliminated())
-                continue;
-
-            // The original lap trial GP code was a mess. I'm not fixing it...
-            if (RaceManager::get()->isLapTrialMode())
-                continue;
-
-            Kart *k = (Kart*)m_karts[kart_id].get();
-            float full_time = RaceManager::get()->getOverallTime(kart_id);
-
-            Highscores* highscores = World::getWorld()->getGPHighscores();
-            // The player is a local player, so there is a name:
-            highscores->addGPData(k->getIdent(), k->getController()->getName(), gp_name, full_time);
-        } // for kart_id
-    } // Handle GP highscores
-
     delete []index;
+
 }   // updateHighscores
 
 //-----------------------------------------------------------------------------

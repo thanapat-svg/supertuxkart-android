@@ -302,9 +302,6 @@ public:
     void setAlwaysSpectate(AlwaysSpectateMode mode)
                                              { m_always_spectate.store(mode); }
     // ------------------------------------------------------------------------
-    AlwaysSpectateMode getAlwaysSpectate() const
-                       { return (AlwaysSpectateMode)m_always_spectate.load(); }
-    // ------------------------------------------------------------------------
     bool alwaysSpectate() const
                                { return m_always_spectate.load() != ASM_NONE; }
     // ------------------------------------------------------------------------

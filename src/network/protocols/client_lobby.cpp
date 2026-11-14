@@ -23,14 +23,13 @@
 #include "audio/sfx_manager.hpp"
 #include "config/user_config.hpp"
 #include "config/player_manager.hpp"
-#include "graphics/camera/camera.hpp"
+#include "graphics/camera.hpp"
 #include "guiengine/engine.hpp"
 #include "guiengine/modaldialog.hpp"
 #include "guiengine/message_queue.hpp"
 #include "guiengine/screen_keyboard.hpp"
 #include "input/device_manager.hpp"
 #include "input/input_device.hpp"
-#include "io/file_manager.hpp"
 #include "items/network_item_manager.hpp"
 #include "items/powerup_manager.hpp"
 #include "karts/abstract_kart.hpp"
@@ -46,7 +45,6 @@
 #include "network/network_player_profile.hpp"
 #include "network/network_timer_synchronizer.hpp"
 #include "network/peer_vote.hpp"
-#include "network/protocols/chat_commands.hpp"
 #include "network/protocols/connect_to_server.hpp"
 #include "network/protocols/game_protocol.hpp"
 #include "network/protocols/game_events_protocol.hpp"
@@ -82,8 +80,6 @@ extern "C"
 }
 #endif
 
-using namespace ProtocolUtils;
-
 // ============================================================================
 std::thread ClientLobby::m_background_download;
 std::shared_ptr<Online::HTTPRequest> ClientLobby::m_download_request;
@@ -100,7 +96,7 @@ void ClientLobby::destroyBackgroundDownload()
 }
 
 // ============================================================================
-/** The protocol that manages starting a race with the server. It uses a
+/** The protocol that manages starting a race with the server. It uses a 
  *  finite state machine:
 \dot
 digraph interaction {
@@ -178,7 +174,7 @@ void ClientLobby::setup()
  */
 void ClientLobby::doneWithResults()
 {
-    NetworkString* done = getNetworkString(m_type, 1);
+    NetworkString* done = getNetworkString(1);
     done->setSynchronous(true);
     done->addUInt8(LE_RACE_FINISHED_ACK);
     sendToServer(done, /*reliable*/true);
@@ -205,7 +201,6 @@ bool ClientLobby::notifyEvent(Event* event)
         case LE_BACK_LOBBY:            backToLobby(event);         break;
         case LE_UPDATE_PLAYER_LIST:    updatePlayerList(event);    break;
         case LE_CHAT:                  handleChat(event);          break;
-        case LE_COMMAND_ANSWER:        handleChat(event, true);    break;
         case LE_CONNECTION_ACCEPTED:   connectionAccepted(event);  break;
         case LE_SERVER_INFO:           handleServerInfo(event);    break;
         case LE_PLAYER_DISCONNECTED :  disconnectedPlayer(event);  break;
@@ -241,7 +236,7 @@ bool ClientLobby::notifyEventAsynchronous(Event* event)
             default:                                                     break;
         }   // switch
     } // message
-    else if (event->getType() == EVENT_TYPE_DISCONNECTED)
+    else if (event->getType() == EVENT_TYPE_DISCONNECTED) 
     {
         // This means we left essentially.
         // We can't delete STKHost from this thread, since the main
@@ -414,7 +409,7 @@ void ClientLobby::update(int ticks)
         std::string ua = StringUtils::getUserAgentString();
         if (NetworkConfig::get()->isNetworkAIInstance())
             ua = "AI";
-        NetworkString* ns = getNetworkString(m_type);
+        NetworkString* ns = getNetworkString();
         ns->addUInt8(LE_CONNECTION_REQUESTED)
             .addUInt32(ServerConfig::m_server_version).encodeString(ua)
             .addUInt16((uint16_t)stk_config->m_network_capabilities.size());
@@ -467,7 +462,10 @@ void ClientLobby::update(int ticks)
 #else
                 name = _("Bot");
 #endif
-                name += core::stringw(" ") + StringUtils::toWString(i + 1);
+                if (i > 0)
+                {
+                    name += core::stringw(" ") + StringUtils::toWString(i);
+                }
             }
             rest->encodeString(name).
                 addFloat(player->getDefaultKartColor());
@@ -546,19 +544,13 @@ void ClientLobby::finalizeConnectionRequest(NetworkString* header,
 {
     if (encrypt)
     {
-        size_t tag_size = 16;
-#ifdef CRYPTO_AES_GCM_32BIT_TAG
-        if (!m_server->supportsAESGCM128BitTag())
-            tag_size = 4;
-#endif
-        auto crypto = Crypto::getClientCrypto(tag_size);
+        auto crypto = Crypto::getClientCrypto();
         Crypto::resetClientAES();
         BareNetworkString* result = new BareNetworkString();
         if (!crypto->encryptConnectionRequest(*rest))
         {
             // Failed
-            result->addUInt32(0).encodeString(
-                PlayerManager::getCurrentOnlineProfile()->getUserName());
+            result->addUInt32(0);
             *result += BareNetworkString(rest->getData(), rest->getTotalSize());
             encrypt = false;
         }
@@ -619,7 +611,7 @@ void ClientLobby::receivePlayerVote(Event* event)
  *  \param event : Event providing the information.
  *
  *  Format of the data :
- *  Byte 0
+ *  Byte 0 
  *       --------------
  *  Size |    1       |
  *  Data | player id *|
@@ -936,26 +928,13 @@ void ClientLobby::becomingServerOwner()
 }   // becomingServerOwner
 
 //-----------------------------------------------------------------------------
-void ClientLobby::handleChat(Event* event, bool command_answer)
+void ClientLobby::handleChat(Event* event)
 {
     if (!UserConfigParams::m_lobby_chat)
         return;
     SFXManager::get()->quickSound("plopp");
     core::stringw message;
-
-    if (command_answer)
-    {
-        ChatCommands::CommandAnswers command_id =
-            (ChatCommands::CommandAnswers)event->data().getUInt16();
-        event->data().decodeString16(&message);
-        std::string args = StringUtils::wideToUtf8(message);
-        message = ChatCommands::getAnswerString(command_id, args);
-    }
-    else
-    {
-        event->data().decodeString16(&message);
-    }
-
+    event->data().decodeString16(&message);
     Log::info("ClientLobby", "%s", StringUtils::wideToUtf8(message).c_str());
     if (GUIEngine::isNoGraphics())
         return;
@@ -973,7 +952,7 @@ void ClientLobby::handleChat(Event* event, bool command_answer)
  *  \param event : Event providing the information.
  *
  *  Format of the data :
- *  Byte 0
+ *  Byte 0 
  *       ----------------
  *  Size |      1       |
  *  Data | refusal code |
@@ -1303,7 +1282,7 @@ void ClientLobby::backToLobby(Event *event)
  */
 void ClientLobby::finishedLoadingWorld()
 {
-    NetworkString* ns = getNetworkString(m_type, 1);
+    NetworkString* ns = getNetworkString(1);
     ns->setSynchronous(m_server_send_live_load_world);
     ns->addUInt8(LE_CLIENT_LOADED_WORLD);
     sendToServer(ns, true);
@@ -1402,7 +1381,7 @@ void ClientLobby::finishLiveJoin()
 //-----------------------------------------------------------------------------
 void ClientLobby::requestKartInfo(uint8_t kart_id)
 {
-    NetworkString* ns = getNetworkString(m_type, 1);
+    NetworkString* ns = getNetworkString(1);
     ns->setSynchronous(true);
     ns->addUInt8(LE_KART_INFO).addUInt8(kart_id);
     sendToServer(ns, true/*reliable*/);
@@ -1498,7 +1477,7 @@ void ClientLobby::sendChat(irr::core::stringw text, KartTeam team)
     text = text.trim().removeChars(L"\n\r");
     if (text.size() > 0)
     {
-        NetworkString* chat = getNetworkString(m_type);
+        NetworkString* chat = getNetworkString();
         chat->addUInt8(LobbyProtocol::LE_CHAT);
 
         core::stringw name;
@@ -1555,7 +1534,6 @@ void ClientLobby::sendChat(irr::core::stringw text, KartTeam team)
 }   // sendChat
 
 // ----------------------------------------------------------------------------
-// FIXME : This should not be in client lobby !!!!
 void ClientLobby::changeSpectateTarget(PlayerAction action, int value,
                                        Input::InputType type) const
 {
@@ -1711,7 +1689,6 @@ void ClientLobby::handleClientCommand(const std::string& cmd)
         AddonsPack::install(argv[1]);
     else if (argv[0] == "uninstalladdon" && argv.size() == 2)
         AddonsPack::uninstall(argv[1]);
-    // FIXME - this code duplicates functions that should be handled elsewhere.
     else if (argv[0] == "music" && argv.size() == 2)
     {
         int vol = atoi(argv[1].c_str());
@@ -1881,7 +1858,7 @@ void ClientLobby::handleClientCommand(const std::string& cmd)
     }
     else if (argv[0] == "opengl")
     {
-        UserConfigParams::m_render_driver = "opengl";
+        UserConfigParams::m_render_driver = "gl";
         user_config->saveConfig();
     }
     else if (argv[0] == "vulkan")
@@ -1892,7 +1869,7 @@ void ClientLobby::handleClientCommand(const std::string& cmd)
     else
     {
         // Send for server command
-        NetworkString* cmd_ns = getNetworkString(m_type, 1);
+        NetworkString* cmd_ns = getNetworkString(1);
         const std::string& language = UserConfigParams::m_language;
         cmd_ns->addUInt8(LE_COMMAND).encodeString(language).encodeString(cmd);
         sendToServer(cmd_ns, /*reliable*/true);
@@ -1934,7 +1911,7 @@ void ClientLobby::getKartsTracksNetworkString(BareNetworkString* ns)
 // ----------------------------------------------------------------------------
 void ClientLobby::updateAssetsToServer()
 {
-    NetworkString* ns = getNetworkString(m_type, 1);
+    NetworkString* ns = getNetworkString(1);
     ns->addUInt8(LE_ASSETS_UPDATE);
     getKartsTracksNetworkString(ns);
     sendToServer(ns, /*reliable*/true);

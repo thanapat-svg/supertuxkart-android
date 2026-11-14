@@ -47,7 +47,7 @@ private:
     std::vector<float>  m_boost_time;
 
     video::ITexture* m_areamap;
-    video::ITexture* m_noise_texture;
+
 public:
                  PostProcessing();
 
@@ -63,9 +63,9 @@ public:
 
     void renderGaussian6Blur(const FrameBuffer &in_fbo, const FrameBuffer &auxiliary,
                               float sigmaV, float sigmaH) const;
-    void renderHorizontalBlur(const FrameBuffer &in_fbo, const FrameBuffer &auxiliary) const;
+	void renderHorizontalBlur(const FrameBuffer &in_fbo, const FrameBuffer &auxiliary) const;
 
-    void renderGaussian9TapBlur(const FrameBuffer &in_fbo,
+    void renderGaussian17TapBlur(const FrameBuffer &in_fbo,
                                  const FrameBuffer &auxiliary,
                                  const FrameBuffer &linear_depth) const;
 
@@ -80,16 +80,13 @@ public:
                        const FrameBuffer &quarter1_fbo,
                        const FrameBuffer &quarter2_fbo);
 
-    void applyMLAA(const FrameBuffer& mlaa_color_in_framebuffer,
+    void applyMLAA(const FrameBuffer& mlaa_tmp_framebuffer,
                    const FrameBuffer& mlaa_blend_framebuffer,
-                   const FrameBuffer& mlaa_results_framebuffer);
+                   const FrameBuffer& mlaa_colors_framebuffer);
 
     void renderMotionBlur(const FrameBuffer &in_fbo,
                           FrameBuffer &out_fbo,
                           GLuint depth_stencil_texture);
-
-    void renderSpeedStreaks();
-
     void renderGlow(const FrameBuffer& quarter_framebuffer) const;
     void renderLightning(core::vector3df intensity);
 

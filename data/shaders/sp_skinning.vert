@@ -1,4 +1,4 @@
-#ifdef SKINNING_TBO_DISABLED
+#ifdef TBO_DISABLED
 uniform sampler2D skinning_tex;
 #else
 uniform samplerBuffer skinning_tex;
@@ -58,7 +58,7 @@ void main()
     vec4 skinned_tangent = vec4(0.0);
     int skinning_offset = i_misc_data.x;
 
-#ifdef SKINNING_TBO_DISABLED
+#ifdef TBO_DISABLED
     mat4 joint_matrix =
         i_weight[0] * mat4(
         texelFetch(skinning_tex, ivec2(0, clamp(i_joint[0] + skinning_offset, 0, MAX_BONES)), 0),
@@ -113,9 +113,12 @@ void main()
     vec3 world_normal = rotateVector(i_rotation, skinned_normal.xyz);
     vec3 world_tangent = rotateVector(i_rotation, skinned_tangent.xyz);
 
-    tangent = world_tangent;
-    bitangent = cross(world_normal, world_tangent) * i_tangent.w;
-    normal = world_normal;
+    tangent = (u_view_matrix * vec4(world_tangent, 0.0)).xyz;
+    bitangent = (u_view_matrix *
+       // bitangent sign
+      vec4(cross(world_normal, world_tangent) * i_tangent.w, 0.0)
+      ).xyz;
+    normal = (u_view_matrix * vec4(world_normal, 0.0)).xyz;
 
     uv = vec2(i_uv.x + (i_texture_trans.x * i_normal.w),
         i_uv.y + (i_texture_trans.y * i_normal.w));

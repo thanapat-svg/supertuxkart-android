@@ -35,8 +35,6 @@
 #include "utils/string_utils.hpp"
 #include "utils/translation.hpp"
 
-#include <IrrlichtDevice.h>
-
 #define INPUT_MODE_DEBUG 0
 
 static const char  INPUT_FILE_NAME[]  = "input.xml";
@@ -91,7 +89,7 @@ bool DeviceManager::initialize()
         m_keyboards.push_back(new KeyboardDevice(m_keyboard_configs.get(n)));
     }
 
-    if ((UserConfigParams::m_multitouch_active == 1 &&
+    if ((UserConfigParams::m_multitouch_active == 1 && 
         irr_driver->getDevice()->supportsTouchDevice()) ||
         UserConfigParams::m_multitouch_active > 1)
     {
@@ -112,7 +110,7 @@ void DeviceManager::clearKeyboard()
 // -----------------------------------------------------------------------------
 void DeviceManager::clearGamepads()
 {
-    m_gamepads.clearAndDeleteAll();
+    m_gamepads.clearAndDeleteAll(); 
 }   // clearGamepads
 // -----------------------------------------------------------------------------
 void DeviceManager::clearMultitouchDevices()
@@ -261,7 +259,7 @@ bool DeviceManager::deleteConfig(DeviceConfig* config)
  *  \param[in]   button_id  Id of the key pressed.
  *  \param[in]   mode       Used to determine whether to determine menu actions
  *                          or game actions
- *  \param[out]  player     Which player this input belongs to (only set in
+ *  \param[out]  player     Which player this input belongs to (only set in 
  *                          ASSIGN mode).
  *  \param[out]  action     Which action is related to this input trigger.
  *  \return                 The device to which this input belongs
@@ -610,24 +608,6 @@ KeyboardDevice* DeviceManager::getKeyboardFromBtnID(const int button_id)
 
     return NULL;
 }   // getKeyboardFromButtonID
-
-// -----------------------------------------------------------------------------
-GamePadDevice* DeviceManager::getGamePad(const int i)
-{
-    if (i>= 0 && i < (int)m_gamepads.size())
-        return m_gamepads.get(i);
-    else
-        return NULL;
-}
-
-// -----------------------------------------------------------------------------
-KeyboardDevice* DeviceManager::getKeyboard(const int i)
-{
-    if (i >= 0 && i < (int)m_keyboards.size())
-        return m_keyboards.get(i);
-    else
-        return NULL;
-}
 
 // -----------------------------------------------------------------------------
 

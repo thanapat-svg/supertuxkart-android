@@ -28,6 +28,8 @@
 #include "network/network_config.hpp"
 #include "states_screens/state_manager.hpp"
 
+#include <irrlicht.h>
+
 using namespace irr;
 using namespace core;
 using namespace scene;
@@ -58,6 +60,7 @@ Screen::Screen(const char* file, bool pause_race)
     m_update_in_background = false;
     m_width = irr_driver->getActualScreenSize().Width;
     m_height = irr_driver->getActualScreenSize().Height;
+    m_resizable = false;
 }   // Screen
 
 // -----------------------------------------------------------------------------
@@ -99,7 +102,7 @@ void Screen::init()
 
 // -----------------------------------------------------------------------------
 /** Displays this screen bu pushing it onto the stack of screen
- *  in the state manager.
+ *  in the state manager. 
  */
 void Screen::push()
 {
@@ -152,13 +155,12 @@ void Screen::loadFromFile()
 void Screen::unload()
 {
     assert(m_magic_number == 0xCAFEC001);
-#ifndef NDEBUG
     Widget* w;
     for_in (w, m_widgets)
     {
         assert(w->m_magic_number == 0xCAFEC001);
     }
-#endif
+
     m_loaded = false;
     m_widgets.clearAndDeleteAll();
 
@@ -228,17 +230,6 @@ void Screen::manualRemoveWidget(Widget* w)
 #endif
     m_widgets.remove(w);
 }   // manualRemoveWidget
-
-// -----------------------------------------------------------------------------
-void Screen::onResize()
-{
-    m_width = irr_driver->getActualScreenSize().Width;
-    m_height = irr_driver->getActualScreenSize().Height;
-
-    calculateLayout();
-
-    resizeWidgetsRecursively(m_widgets);
-}   // onResize
 
 // -----------------------------------------------------------------------------
 

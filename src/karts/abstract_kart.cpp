@@ -276,4 +276,3 @@ void AbstractKart::makeKartRest()
     body->proceedToTransform(t);
     setTrans(t);
 }   // makeKartRest
-

@@ -18,25 +18,12 @@
 #ifndef HEADER_RENDER_TARGET_HPP
 #define HEADER_RENDER_TARGET_HPP
 
-#include <dimension2d.h>
-#include <rect.h>
+#include <irrlicht.h>
 #include <string>
 
 class FrameBuffer;
 class RTT;
 class ShaderBasedRenderer;
-
-namespace irr
-{
-    namespace scene
-    {
-        class ICameraSceneNode; class ISceneNode;
-    }
-    namespace video
-    {
-        class ITexture; class SColor;
-    }
-}
 
 class RenderTarget
 {
@@ -49,7 +36,7 @@ public:
     virtual void draw2DImage(const irr::core::rect<irr::s32>& dest_rect,
                              const irr::core::rect<irr::s32>* clip_rect,
                              const irr::video::SColor &colors,
-                             bool use_alpha_channel_of_texture) const = 0;
+                             bool use_alpha_channel_of_texture) const = 0;    
 };
 
 class GL1RenderTarget: public RenderTarget

@@ -38,7 +38,7 @@ using namespace GUIEngine;
 using namespace irr::core;
 
 // -----------------------------------------------------------------------------
-GrandPrixEditorScreen::GrandPrixEditorScreen()
+GrandPrixEditorScreen::GrandPrixEditorScreen() 
                      : Screen("grand_prix_editor.stkgui"), m_selection(NULL),
                        m_gpgroup(GrandPrixData::GP_NONE)
 {
@@ -114,12 +114,9 @@ void GrandPrixEditorScreen::eventCallback(Widget* widget, const std::string& nam
         }
         else if (m_action == "rename" && m_selection != NULL)
         {
-            GeneralTextFieldDialog* dialog = new GeneralTextFieldDialog(_("Please enter the name of the grand prix"),
+            new GeneralTextFieldDialog(_("Please enter the name of the grand prix"),
                 std::bind(&GrandPrixEditorScreen::setNewGPWithName,
                           this, std::placeholders::_1), validateName);
-            
-            // Prefill the textbox with the current grand prix name
-            dialog->getTextField()->setText(m_selection->getName());
         }
     }
     else if (name == "gpgroups")
@@ -196,9 +193,7 @@ void GrandPrixEditorScreen::loadTrackList (const std::string& gpname)
     const std::vector<std::string> tracks = gp->getTrackNames(true);
 
     tracks_widget->clearItems();
-
-    // Avoid too many items shown at the same time
-    tracks_widget->setItemCountHint(std::min((int)tracks.size(), 15));
+    tracks_widget->setItemCountHint((int)tracks.size());
     for (unsigned int t = 0; t < tracks.size(); t++)
     {
         Track* curr = track_manager->getTrack(tracks[t]);

@@ -15,29 +15,59 @@
 //  along with this program; if not, write to the Free Software
 //  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
-#ifndef SERVER_ONLY // No GUI files in server builds
+#include "states_screens/options/options_screen_ui.hpp"
 
-// Manages includes common to all options screens
-#include "states_screens/options/options_common.hpp"
-
+#include "addons/news_manager.hpp"
+#include "audio/sfx_manager.hpp"
+#include "audio/sfx_base.hpp"
+#include "graphics/camera.hpp"
+#include "graphics/camera_normal.hpp"
 #include "challenges/story_mode_timer.hpp"
+#include "config/hardware_stats.hpp"
 #include "config/player_manager.hpp"
+#include "config/user_config.hpp"
+#include "config/stk_config.hpp"
+#include "font/bold_face.hpp"
 #include "font/font_manager.hpp"
+#include "font/regular_face.hpp"
 #include "graphics/irr_driver.hpp"
-#include "items/attachment_manager.hpp"
+#include "guiengine/scalable_font.hpp"
+#include "guiengine/screen.hpp"
+#include "guiengine/widgets/button_widget.hpp"
+#include "guiengine/widgets/check_box_widget.hpp"
+#include "guiengine/widgets/dynamic_ribbon_widget.hpp"
+#include "guiengine/widgets/label_widget.hpp"
+#include "guiengine/widgets/list_widget.hpp"
+#include "guiengine/widgets/spinner_widget.hpp"
+#include "guiengine/widget.hpp"
+#include "io/file_manager.hpp"
 #include "items/powerup_manager.hpp"
 #include "modes/world.hpp"
+#include "online/request_manager.hpp"
 #include "states_screens/dialogs/message_dialog.hpp"
 #include "states_screens/main_menu_screen.hpp"
+#include "states_screens/dialogs/custom_camera_settings.hpp"
+#include "states_screens/options/options_screen_audio.hpp"
+#include "states_screens/options/options_screen_general.hpp"
+#include "states_screens/options/options_screen_input.hpp"
+#include "states_screens/options/options_screen_language.hpp"
+#include "states_screens/options/options_screen_video.hpp"
+#include "states_screens/state_manager.hpp"
+#include "states_screens/options/user_screen.hpp"
+#include "utils/log.hpp"
+#include "utils/string_utils.hpp"
+#include "utils/translation.hpp"
 
-#include <IrrlichtDevice.h>
+#include <algorithm>
+#include <iostream>
+#include <sstream>
 
 using namespace GUIEngine;
 using namespace Online;
 
 // -----------------------------------------------------------------------------
 
-OptionsScreenUI::OptionsScreenUI() : Screen("options/options_ui.stkgui")
+OptionsScreenUI::OptionsScreenUI() : Screen("options_ui.stkgui")
 {
     m_inited = false;
 }   // OptionsScreenVideo
@@ -48,13 +78,10 @@ void OptionsScreenUI::loadedFromFile()
 {
     m_inited = false;
 
-    m_base_skin_selector = getWidget<GUIEngine::SpinnerWidget>("base_skinchoice");
-    m_variant_skin_selector = getWidget<GUIEngine::SpinnerWidget>("variant_skinchoice");
-    assert( m_base_skin_selector != NULL );
-    assert( m_variant_skin_selector != NULL );
+    GUIEngine::SpinnerWidget* skinSelector = getWidget<GUIEngine::SpinnerWidget>("skinchoice");
+    assert( skinSelector != NULL );
 
-    m_base_skin_selector->m_properties[PROP_WRAP_AROUND] = "true";
-    m_variant_skin_selector->m_properties[PROP_WRAP_AROUND] = "true";
+    skinSelector->m_properties[PROP_WRAP_AROUND] = "true";
 
     // Setup the minimap options spinner
     GUIEngine::SpinnerWidget* minimap_options = getWidget<GUIEngine::SpinnerWidget>("minimap");
@@ -62,41 +89,53 @@ void OptionsScreenUI::loadedFromFile()
 
     minimap_options->m_properties[PROP_WRAP_AROUND] = "true";
     minimap_options->clearLabels();
-    //I18N: In the UI options, minimap position in the race UI
+    //I18N: In the UI options, minimap position in the race UI 
     minimap_options->addLabel( core::stringw(_("In the bottom-left")));
-    //I18N: In the UI options, minimap position in the race UI
+    //I18N: In the UI options, minimap position in the race UI 
     minimap_options->addLabel( core::stringw(_("On the right side")));
-    //I18N: In the UI options, minimap position in the race UI
+    //I18N: In the UI options, minimap position in the race UI 
     minimap_options->addLabel( core::stringw(_("Hidden")));
     //I18N: In the UI options, minimap position in the race UI
     minimap_options->addLabel( core::stringw(_("Centered")));
     minimap_options->m_properties[GUIEngine::PROP_MIN_VALUE] = "0";
 
-    bool multitouch_enabled = (UserConfigParams::m_multitouch_active == 1 &&
+    bool multitouch_enabled = (UserConfigParams::m_multitouch_active == 1 && 
                                irr_driver->getDevice()->supportsTouchDevice()) ||
                                UserConfigParams::m_multitouch_active > 1;
 
     if (multitouch_enabled && UserConfigParams::m_multitouch_draw_gui)
+    {
         minimap_options->m_properties[GUIEngine::PROP_MIN_VALUE] = "1";
-
+    }
     minimap_options->m_properties[GUIEngine::PROP_MAX_VALUE] = "3";
 
-    // Setup the fontsize spinner
+    // Setup splitscreen spinner
+    GUIEngine::SpinnerWidget* splitscreen_method = getWidget<GUIEngine::SpinnerWidget>("splitscreen_method");
+    splitscreen_method->m_properties[PROP_WRAP_AROUND] = "true";
+    splitscreen_method->clearLabels();
+    //I18N: In the UI options, splitscreen_method in the race UI
+    splitscreen_method->addLabel( core::stringw(_("Vertical")));
+    //I18N: In the UI options, splitscreen_method position in the race UI
+    splitscreen_method->addLabel( core::stringw(_("Horizontal")));
+    splitscreen_method->m_properties[GUIEngine::PROP_MIN_VALUE] = "0";
+    splitscreen_method->m_properties[GUIEngine::PROP_MAX_VALUE] = "1";
+
+    // Setup fontsize spinner
     GUIEngine::SpinnerWidget* font_size = getWidget<GUIEngine::SpinnerWidget>("font_size");
     assert( font_size != NULL );
 
     font_size->clearLabels();
     font_size->addLabel(L"Extremely small");
     //I18N: In the UI options, Very small font size
-    font_size->addLabel(_C("Font size", "Very small"));
+    font_size->addLabel(_("Very small"));
     //I18N: In the UI options, Small font size
-    font_size->addLabel(_C("Font size", "Small"));
+    font_size->addLabel(_("Small"));
     //I18N: In the UI options, Medium font size
-    font_size->addLabel(_C("Font size", "Medium"));
+    font_size->addLabel(_("Medium"));
     //I18N: In the UI options, Large font size
-    font_size->addLabel(_C("Font size", "Large"));
+    font_size->addLabel(_("Large"));
     //I18N: In the UI options, Very large font size
-    font_size->addLabel(_C("Font size", "Very large"));
+    font_size->addLabel(_("Very large"));
     font_size->addLabel(L"Extremely large");
 
     if (UserConfigParams::m_artist_debug_mode)
@@ -110,6 +149,22 @@ void OptionsScreenUI::loadedFromFile()
         font_size->m_properties[GUIEngine::PROP_MIN_VALUE] = "1";
         font_size->m_properties[GUIEngine::PROP_MAX_VALUE] = "5";
     }
+
+    // Setup camera spinner
+    GUIEngine::SpinnerWidget* camera_preset = getWidget<GUIEngine::SpinnerWidget>("camera_preset");
+    assert( camera_preset != NULL );
+
+    camera_preset->m_properties[PROP_WRAP_AROUND] = "true";
+    camera_preset->clearLabels();
+    //I18N: In the UI options, Camera setting: Custom
+    camera_preset->addLabel( core::stringw(_("Custom")));
+    //I18N: In the UI options, Camera setting: Standard
+    camera_preset->addLabel( core::stringw(_("Standard")));
+    //I18N: In the UI options, Camera setting: Drone chase
+    camera_preset->addLabel( core::stringw(_("Drone chase")));
+    camera_preset->m_properties[GUIEngine::PROP_MIN_VALUE] = "0";
+    camera_preset->m_properties[GUIEngine::PROP_MAX_VALUE] = "2";
+    updateCameraPresetSpinner();
 
     font_size->setValueUpdatedCallback([this](SpinnerWidget* spinner)
     {
@@ -131,20 +186,16 @@ void OptionsScreenUI::loadedFromFile()
 void OptionsScreenUI::init()
 {
     Screen::init();
-    OptionsCommon::setTabStatus();
-
-    bool in_game = StateManager::get()->getGameState() == GUIEngine::INGAME_MENU;
-
     RibbonWidget* ribbon = getWidget<RibbonWidget>("options_choice");
     assert(ribbon != NULL);
     ribbon->setFocusForPlayer(PLAYER_ID_GAME_MASTER);
     ribbon->select( "tab_ui", PLAYER_ID_GAME_MASTER );
 
+    GUIEngine::SpinnerWidget* skinSelector = getWidget<GUIEngine::SpinnerWidget>("skinchoice");
+    assert( skinSelector != NULL );
+
     m_skins.clear();
-    m_base_skins.clear();
-    m_current_skin_variants.clear();
-    m_base_skin_selector ->clearLabels();
-    m_variant_skin_selector->clearLabels();
+    skinSelector->clearLabels();
 
     std::set<std::string> skin_files;
     file_manager->listFiles(skin_files /* out */, file_manager->getAsset(FileManager::SKIN,""),
@@ -153,61 +204,50 @@ void OptionsScreenUI::init()
     file_manager->listFiles(addon_skin_files /* out */, file_manager->getAddonsFile("skins/"),
                             true /* make full path */ );
 
-    loadSkins(skin_files, false);
-    loadSkins(addon_skin_files, true);
+    auto lb = [](const std::set<std::string>& files, bool addon,
+                 std::map<core::stringw, std::string>& result)->void
+        {
+            for (auto& f : files)
+            {
+                std::string stkskin = f + "/stkskin.xml";
+                if (file_manager->fileExists(stkskin))
+                {
+                    XMLNode* root = file_manager->createXMLTree(stkskin);
+                    if (!root)
+                        continue;
+                    core::stringw skin_name;
+                    if (root->get("name", &skin_name))
+                    {
+                        std::string skin_id = StringUtils::getBasename(f);
+                        if (addon)
+                            skin_id = std::string("addon_") + skin_id;
+                        result[skin_name] = skin_id;
+                    }
+                    delete root;
+                }
+            }
+        };
+    lb(skin_files, false, m_skins);
+    lb(addon_skin_files, true, m_skins);
 
     if (m_skins.size() == 0)
     {
         Log::warn("OptionsScreenUI", "Could not find a single skin, make sure that "
                                      "the data files are correctly installed");
-        m_base_skin_selector ->setActive(false);
-        m_variant_skin_selector->setActive(false);
+        skinSelector->setActive(false);
         return;
     }
 
-    const int base_skin_count = (int)m_base_skins.size();
-    for (auto& p : m_base_skins)
-        m_base_skin_selector ->addLabel(p);
-    m_base_skin_selector ->m_properties[GUIEngine::PROP_MIN_VALUE] = "0";
-    m_base_skin_selector ->m_properties[GUIEngine::PROP_MAX_VALUE] = StringUtils::toString(base_skin_count-1);
-
-    // --- select the right skin in the spinner
-    bool currSkinFound = false;
-    const std::string& user_skin = UserConfigParams::m_skin_file;
-    m_base_skin_selector ->setActive(!in_game);
-    OptionsCommon::updatePauseTooltip(m_base_skin_selector, in_game);
-
-    m_variant_skin_selector->setActive(!in_game);
-    OptionsCommon::updatePauseTooltip(m_variant_skin_selector, in_game);
-
-    for (unsigned int i = 0; i < m_skins.size(); i++)
-    {
-        if (m_skins[i].m_folder_name == user_skin)
-        {
-            m_active_base_skin = m_skins[i].m_base_theme_name;
-            m_base_skin_selector ->setValue(getBaseID(m_skins[i]));
-            loadCurrentSkinVariants();
-            m_variant_skin_selector->setValue(getVariantID(m_skins[i]));
-            currSkinFound = true;
-            break;
-        }
-    }
-    if (!currSkinFound)
-    {
-        Log::warn("OptionsScreenUI", "Couldn't find the current skin in the list of skins!");
-        m_base_skin_selector ->setValue(0);
-        m_variant_skin_selector->setValue(0);
-        irr_driver->unsetMaxTextureSize();
-        GUIEngine::reloadSkin();
-        irr_driver->setMaxTextureSize();
-    }
-
-    // --- Setup other spinners and checkboxes
+    const int skin_count = (int)m_skins.size();
+    for (auto& p : m_skins)
+        skinSelector->addLabel(p.first);
+    skinSelector->m_properties[GUIEngine::PROP_MIN_VALUE] = "0";
+    skinSelector->m_properties[GUIEngine::PROP_MAX_VALUE] = StringUtils::toString(skin_count-1);
 
     GUIEngine::SpinnerWidget* minimap_options = getWidget<GUIEngine::SpinnerWidget>("minimap");
     assert( minimap_options != NULL );
 
-    bool multitouch_enabled = (UserConfigParams::m_multitouch_active == 1 &&
+    bool multitouch_enabled = (UserConfigParams::m_multitouch_active == 1 && 
                                irr_driver->getDevice()->supportsTouchDevice()) ||
                                UserConfigParams::m_multitouch_active > 1;
 
@@ -217,6 +257,8 @@ void OptionsScreenUI::init()
         UserConfigParams::m_minimap_display = 1;
     }
     minimap_options->setValue(UserConfigParams::m_minimap_display);
+    
+    bool in_game = StateManager::get()->getGameState() == GUIEngine::INGAME_MENU;
     
     GUIEngine::SpinnerWidget* font_size = getWidget<GUIEngine::SpinnerWidget>("font_size");
     assert( font_size != NULL );
@@ -232,7 +274,13 @@ void OptionsScreenUI::init()
     font_size->setValue(size_int);
     UserConfigParams::m_font_size = font_size->getValue();
     font_size->setActive(!in_game);
-    OptionsCommon::updatePauseTooltip(font_size, in_game);
+
+    // ---- video modes
+    GUIEngine::SpinnerWidget* splitscreen_method = getWidget<GUIEngine::SpinnerWidget>("splitscreen_method");
+    assert( splitscreen_method != NULL );
+    if (UserConfigParams::split_screen_horizontally) splitscreen_method->setValue(1);
+    else splitscreen_method->setValue(0);
+    splitscreen_method->setActive(!in_game);
 
     CheckBoxWidget* karts_powerup_gui = getWidget<CheckBoxWidget>("karts_powerup_gui");
     assert(karts_powerup_gui != NULL);
@@ -275,165 +323,111 @@ void OptionsScreenUI::init()
         }
     }
     speedrun_timer->setState( UserConfigParams::m_speedrun_mode );
+
+    // --- select the right skin in the spinner
+    bool currSkinFound = false;
+    const std::string& user_skin = UserConfigParams::m_skin_file;
+    skinSelector->setActive(!in_game);
+
+    for (int n = 0; n <= skinSelector->getMax(); n++)
+    {
+        auto ret = m_skins.find(skinSelector->getStringValueFromID(n));
+        if (ret == m_skins.end())
+            continue;
+        const std::string skinFileName = ret->second;
+
+        if (user_skin == skinFileName)
+        {
+            skinSelector->setValue(n);
+            currSkinFound = true;
+            break;
+        }
+    }
+    if (!currSkinFound)
+    {
+        Log::warn("OptionsScreenUI",
+                  "Couldn't find current skin in the list of skins!");
+        skinSelector->setValue(0);
+        irr_driver->unsetMaxTextureSize();
+        GUIEngine::reloadSkin();
+        irr_driver->setMaxTextureSize();
+    }
+
+    // --- select the right camera in the spinner
+    GUIEngine::SpinnerWidget* camera_preset = getWidget<GUIEngine::SpinnerWidget>("camera_preset");
+    assert( camera_preset != NULL );
+
+    camera_preset->setValue(UserConfigParams::m_camera_present); // use the saved camera
+    updateCameraPresetSpinner();
 }   // init
 
-// -----------------------------------------------------------------------------
-void OptionsScreenUI::loadSkins(const std::set<std::string>& files, bool addon)
+void OptionsScreenUI::updateCamera()
 {
-    for (auto& f : files)
-    {
-        std::string stkskin = f + "/stkskin.xml";
-        if (file_manager->fileExists(stkskin))
-        {
-            XMLNode* root = file_manager->createXMLTree(stkskin);
-            if (!root)
-                continue;
-
-            SkinID skin;
-            std::string folder_name = StringUtils::getBasename(f);
-            if (addon)
-                folder_name = std::string("addon_") + folder_name;
-
-            if (root->get("base_theme_name", &skin.m_base_theme_name))
-            {
-                if (!root->get("variant_name", &skin.m_variant_name))
-                    skin.m_variant_name = core::stringw(" ");
-            }
-            else if (root->get("name", &skin.m_base_theme_name))
-            {
-                skin.m_variant_name = " ";
-            }
-            else
-            {
-                delete root;
-                return;
-            }
-
-            // Localize the skin names
-            skin.m_base_theme_name = _(skin.m_base_theme_name.c_str());
-            skin.m_variant_name    = _(skin.m_variant_name.c_str());
-
-            skin.m_folder_name = folder_name;
-            m_skins.push_back(skin);
-
-            // Add the base theme to the list of base Themes
-            bool new_base_theme = true;
-            for (int i = 0; i<(int)m_base_skins.size(); i++)
-            {
-                if (m_base_skins[i] == skin.m_base_theme_name)
-                    new_base_theme = false;
-            }
-            if (new_base_theme)
-                m_base_skins.push_back(skin.m_base_theme_name);
-
-            delete root;
-        }
-    }
-} // loadSkins
-
-// -----------------------------------------------------------------------------
-/** Set up the variant spinner with the appropriate values based on the current base skin. */
-void OptionsScreenUI::loadCurrentSkinVariants()
-{
-    core::stringw old_label = m_variant_skin_selector->getStringValue();
-    m_variant_skin_selector->clearLabels();
-    m_current_skin_variants.clear();
-
-    for (int i=0; i<(int)m_skins.size();i++)
-    {
-        if (m_skins[i].m_base_theme_name == m_active_base_skin)
-        {
-            m_current_skin_variants.push_back(m_skins[i].m_variant_name);
-            m_variant_skin_selector->addLabel(m_skins[i].m_variant_name);
-        }
-    }
-    
-    m_variant_skin_selector->m_properties[GUIEngine::PROP_MIN_VALUE] = "0";
-    m_variant_skin_selector->m_properties[GUIEngine::PROP_MAX_VALUE] =
-        StringUtils::toString(m_current_skin_variants.size()-1);
-
-    // When switching base theme, don't reset the variant spinner
-    // if the variant exists for both the previous and the new base theme.
-    for (int i=0; i<(int)m_current_skin_variants.size();i++)
-    {
-        if(m_current_skin_variants[i] == old_label)
-            m_variant_skin_selector->setValue(i);
-    }
-
     bool in_game = StateManager::get()->getGameState() == GUIEngine::INGAME_MENU;
-
-    if (m_current_skin_variants.size() == 1)
-        m_variant_skin_selector->setActive(false);
-    else
-        m_variant_skin_selector->setActive(!in_game);
-} // loadCurrentSkinVariants
-
-// -----------------------------------------------------------------------------
-/** Returns the spinner value matching the given name */
-int OptionsScreenUI::getBaseID(SkinID skin)
-{
-    for (int i=0; i<(int)m_base_skins.size(); i++)
+    if (in_game)
     {
-        if (m_base_skins[i] == skin.m_base_theme_name)
-            return i;
+        (Camera::getActiveCamera()->getCameraSceneNode())->setFOV(DEGREE_TO_RAD * UserConfigParams::m_camera_fov);
+        CameraNormal *camera = dynamic_cast<CameraNormal*>(Camera::getActiveCamera());
+        if (camera)
+        {
+            camera->setDistanceToKart(UserConfigParams::m_camera_distance);
+        }
     }
-    return 0;
-} // getBaseID
+}
 
-// -----------------------------------------------------------------------------
-/** Returns the spinner value matching the given name */
-int OptionsScreenUI::getVariantID(SkinID skin)
+void OptionsScreenUI::updateCameraPresetSpinner()
 {
-    for (int i=0; i<(int)m_current_skin_variants.size(); i++)
-    {
-        if (m_current_skin_variants[i] == skin.m_variant_name)
-            return i;
-    }
-    return 0;
-} // getVariantID
+    updateCamera();
+} // updateCameraPresetSpinner
 
 // -----------------------------------------------------------------------------
-/** Returns the folder name of the current skin based on the spinners */
-std::string OptionsScreenUI::getCurrentSpinnerSkin()
-{
-    for (int i=0; i<(int)m_skins.size();i++)
-    {
-        if (m_skins[i].m_base_theme_name == m_base_skin_selector ->getStringValue() &&
-            m_skins[i].m_variant_name    == m_variant_skin_selector->getStringValue())
-            return m_skins[i].m_folder_name;
-    }
-    return "classic"; // Default if nothing is found
-} // getCurrentSpinnerSkin
 
-// -----------------------------------------------------------------------------
 void OptionsScreenUI::eventCallback(Widget* widget, const std::string& name, const int playerID)
 {
+#ifndef SERVER_ONLY
     if (name == "options_choice")
     {
         std::string selection = ((RibbonWidget*)widget)->getSelectionIDString(PLAYER_ID_GAME_MASTER);
 
-        if (selection != "tab_ui")
-            OptionsCommon::switchTab(selection);
+        Screen *screen = NULL;
+        if (selection == "tab_audio")
+            screen = OptionsScreenAudio::getInstance();
+        else if (selection == "tab_video")
+            screen = OptionsScreenVideo::getInstance();
+        else if (selection == "tab_players")
+            screen = TabbedUserScreen::getInstance();
+        else if (selection == "tab_controls")
+            screen = OptionsScreenInput::getInstance();
+        //else if (selection == "tab_ui")
+        //    screen = OptionsScreenUI::getInstance();
+        else if (selection == "tab_general")
+            screen = OptionsScreenGeneral::getInstance();
+        else if (selection == "tab_language")
+            screen = OptionsScreenLanguage::getInstance();
+        if(screen)
+            StateManager::get()->replaceTopMostScreen(screen);
     }
     else if(name == "back")
     {
         StateManager::get()->escapePressed();
     }
-    else if (name == "base_skinchoice")
+    else if (name == "skinchoice")
     {
-        m_active_base_skin = m_base_skin_selector->getStringValue();
-        loadCurrentSkinVariants();
-        UserConfigParams::m_skin_file = getCurrentSpinnerSkin();
-        onSkinChange(false);
-        m_reload_option->m_focus_name = "base_skinchoice";
-        m_reload_option->m_focus_right = m_base_skin_selector->isButtonSelected(true/*right*/);
-    }
-    else if (name == "variant_skinchoice")
-    {
-        UserConfigParams::m_skin_file = getCurrentSpinnerSkin();
-        onSkinChange(true);
-        m_reload_option->m_focus_name = "variant_skinchoice";
-        m_reload_option->m_focus_right = m_variant_skin_selector->isButtonSelected(true/*right*/);
+        GUIEngine::SpinnerWidget* skinSelector = getWidget<GUIEngine::SpinnerWidget>("skinchoice");
+        assert( skinSelector != NULL );
+
+        const core::stringw selectedSkin = skinSelector->getStringValue();
+        bool right = skinSelector->isButtonSelected(true/*right*/);
+        UserConfigParams::m_skin_file = m_skins[selectedSkin];
+        bool prev_font = GUIEngine::getSkin()->hasFont();
+        irr_driver->unsetMaxTextureSize();
+        GUIEngine::reloadSkin();
+        // Reload GUIEngine will clear widgets so we don't do that in eventCallback
+        m_reload_option = std::unique_ptr<ReloadOption>(new ReloadOption);
+        m_reload_option->m_reload_font = prev_font != GUIEngine::getSkin()->hasFont();
+        m_reload_option->m_reload_skin = true;
+        m_reload_option->m_focus_name = "skinchoice";
+        m_reload_option->m_focus_right = right;
     }
     else if (name == "minimap")
     {
@@ -455,6 +449,12 @@ void OptionsScreenUI::eventCallback(Widget* widget, const std::string& name, con
         m_reload_option->m_reload_skin = false;
         m_reload_option->m_focus_name = "font_size";
         m_reload_option->m_focus_right = right;
+    }
+    else if (name == "splitscreen_method")
+    {
+        GUIEngine::SpinnerWidget* splitscreen_method = getWidget<GUIEngine::SpinnerWidget>("splitscreen_method");
+        assert( splitscreen_method != NULL );
+        UserConfigParams::split_screen_horizontally = (splitscreen_method->getValue() == 1);
     }
     else if (name == "karts_powerup_gui")
     {
@@ -508,6 +508,49 @@ void OptionsScreenUI::eventCallback(Widget* widget, const std::string& name, con
         }
         UserConfigParams::m_speedrun_mode = speedrun_timer->getState();
     }
+    else if (name == "camera_preset")
+    {
+        GUIEngine::SpinnerWidget* camera_preset = getWidget<GUIEngine::SpinnerWidget>("camera_preset");
+        assert( camera_preset != NULL );
+        unsigned int i = camera_preset->getValue();
+        UserConfigParams::m_camera_present = i;
+        if (i == 1) //Standard
+        {
+            UserConfigParams::m_camera_fov = UserConfigParams::m_standard_camera_fov;
+            UserConfigParams::m_camera_distance = UserConfigParams::m_standard_camera_distance;
+            UserConfigParams::m_camera_forward_up_angle = UserConfigParams::m_standard_camera_forward_up_angle;
+            UserConfigParams::m_camera_forward_smoothing = UserConfigParams::m_standard_camera_forward_smoothing;
+            UserConfigParams::m_camera_backward_distance = UserConfigParams::m_standard_camera_backward_distance;
+            UserConfigParams::m_camera_backward_up_angle = UserConfigParams::m_standard_camera_backward_up_angle;
+            UserConfigParams::m_reverse_look_use_soccer_cam = UserConfigParams::m_standard_reverse_look_use_soccer_cam;
+        }
+        else if (i == 2) //Drone chase
+        {
+            UserConfigParams::m_camera_fov = UserConfigParams::m_drone_camera_fov;
+            UserConfigParams::m_camera_distance = UserConfigParams::m_drone_camera_distance;
+            UserConfigParams::m_camera_forward_up_angle = UserConfigParams::m_drone_camera_forward_up_angle;
+            UserConfigParams::m_camera_forward_smoothing = UserConfigParams::m_drone_camera_forward_smoothing;
+            UserConfigParams::m_camera_backward_distance = UserConfigParams::m_drone_camera_backward_distance;
+            UserConfigParams::m_camera_backward_up_angle = UserConfigParams::m_drone_camera_backward_up_angle;
+            UserConfigParams::m_reverse_look_use_soccer_cam = UserConfigParams::m_drone_reverse_look_use_soccer_cam;
+        }
+        else //Custom
+        {
+            UserConfigParams::m_camera_fov = UserConfigParams::m_saved_camera_fov;
+            UserConfigParams::m_camera_distance = UserConfigParams::m_saved_camera_distance;
+            UserConfigParams::m_camera_forward_up_angle = UserConfigParams::m_saved_camera_forward_up_angle;
+            UserConfigParams::m_camera_forward_smoothing = UserConfigParams::m_saved_camera_forward_smoothing;
+            UserConfigParams::m_camera_backward_distance = UserConfigParams::m_saved_camera_backward_distance;
+            UserConfigParams::m_camera_backward_up_angle = UserConfigParams::m_saved_camera_backward_up_angle;
+            UserConfigParams::m_reverse_look_use_soccer_cam = UserConfigParams::m_saved_reverse_look_use_soccer_cam;
+        }
+        updateCamera();
+    }
+    else if(name == "custom_camera")
+    {
+        new CustomCameraSettingsDialog(0.8f, 0.95f);
+    }
+#endif
 }   // eventCallback
 
 // -----------------------------------------------------------------------------
@@ -561,32 +604,12 @@ void OptionsScreenUI::reloadGUIEngine()
     if (reload_skin)
     {
         irr_driver->setMaxTextureSize();
-
         delete powerup_manager;
         powerup_manager = new PowerupManager();
         powerup_manager->loadPowerupsModels();
-
-        delete attachment_manager;
-        attachment_manager = new AttachmentManager();
-        attachment_manager->loadModels();
     }
     OptionsScreenUI::getInstance()->m_reload_option = nullptr;
 }   // reloadGUIEngine
-
-// -----------------------------------------------------------------------------
-void OptionsScreenUI::onSkinChange(bool is_variant)
-{
-    bool change_font = GUIEngine::getSkin()->hasFont();
-    irr_driver->unsetMaxTextureSize();
-    GUIEngine::reloadSkin();
-    // Reload GUIEngine will clear widgets and set max texture Size so we don't do that here
-    m_reload_option = std::unique_ptr<ReloadOption>(new ReloadOption);
-    // Check either old or new skin use custom_font
-    change_font |= GUIEngine::getSkin()->hasFont();
-    // Assume skin variants use the same font set
-    m_reload_option->m_reload_font = change_font && !is_variant;
-    m_reload_option->m_reload_skin = true;
-} // onSkinChange
 
 // -----------------------------------------------------------------------------
 
@@ -604,4 +627,4 @@ void OptionsScreenUI::unloaded()
     m_inited = false;
 }   // unloaded
 
-#endif // ifndef SERVER_ONLY
+// -----------------------------------------------------------------------------

@@ -22,8 +22,9 @@ using namespace irr;
 #include <algorithm>
 
 #include "config/user_config.hpp"
-#include "graphics/camera/camera.hpp"
-#include "graphics/camera/camera_debug.hpp"
+#include "graphics/camera.hpp"
+#include "graphics/camera_debug.hpp"
+#include "graphics/central_settings.hpp"
 #include "graphics/2dutils.hpp"
 #include "graphics/irr_driver.hpp"
 #include "graphics/material.hpp"
@@ -36,7 +37,6 @@ using namespace irr;
 #include "network/protocols/client_lobby.hpp"
 #include "states_screens/race_gui_base.hpp"
 
-#include <IrrlichtDevice.h>
 
 //-----------------------------------------------------------------------------
 /** The multitouch GUI constructor
@@ -105,19 +105,19 @@ void RaceGUIMultitouch::recreate()
  */
 void RaceGUIMultitouch::close()
 {
-    if (m_device)
+    if (m_device != NULL)
     {
         m_device->clearButtons();
+    }
+    
+    if (m_device->isAccelerometerActive())
+    {
+        m_device->deactivateAccelerometer();
+    }
 
-        if (m_device->isAccelerometerActive())
-        {
-            m_device->deactivateAccelerometer();
-        }
-
-        if (m_device->isGyroscopeActive())
-        {
-            m_device->deactivateGyroscope();
-        }
+    if (m_device->isGyroscopeActive())
+    {
+        m_device->deactivateGyroscope();
     }
 }   // close
 
@@ -135,7 +135,7 @@ void RaceGUIMultitouch::init()
         UserConfigParams::m_multitouch_scale = 0.8f;
     }
     
-    m_steering_wheel_tex = irr_driver->getTexture(FileManager::GUI_ICON,
+    m_steering_wheel_tex = irr_driver->getTexture(FileManager::GUI_ICON, 
                                                   "android/steering_wheel.png");
     m_accelerator_tex = irr_driver->getTexture(FileManager::GUI_ICON,
                                                "android/accelerator.png");
@@ -143,26 +143,30 @@ void RaceGUIMultitouch::init()
                                                "android/accelerator_handle.png");
     m_pause_tex = irr_driver->getTexture(FileManager::GUI_ICON, "android/pause.png");
     m_nitro_tex = irr_driver->getTexture(FileManager::GUI_ICON, "android/nitro.png");
-    m_nitro_empty_tex = irr_driver->getTexture(FileManager::GUI_ICON,
+    m_nitro_empty_tex = irr_driver->getTexture(FileManager::GUI_ICON, 
                                                      "android/nitro_empty.png");
-    m_wing_mirror_tex = irr_driver->getTexture(FileManager::GUI_ICON,
+    m_wing_mirror_tex = irr_driver->getTexture(FileManager::GUI_ICON, 
                                                      "android/wing_mirror.png");
-    m_thunderbird_reset_tex = irr_driver->getTexture(FileManager::GUI_ICON,
+    m_thunderbird_reset_tex = irr_driver->getTexture(FileManager::GUI_ICON, 
                                                "android/thunderbird_reset.png");
     m_drift_tex = irr_driver->getTexture(FileManager::GUI_ICON, "android/drift.png");
-    m_bg_button_tex = irr_driver->getTexture(FileManager::GUI_ICON,
+    m_bg_button_tex = irr_driver->getTexture(FileManager::GUI_ICON, 
                                                   "android/blur_bg_button.png");
-    m_bg_button_focus_tex = irr_driver->getTexture(FileManager::GUI_ICON,
+    m_bg_button_focus_tex = irr_driver->getTexture(FileManager::GUI_ICON, 
                                             "android/blur_bg_button_focus.png");
     m_gui_action_tex = irr_driver->getTexture(FileManager::GUI_ICON,"challenge.png");
     m_up_tex = irr_driver->getTexture(FileManager::GUI_ICON, "up.png");
     m_down_tex = irr_driver->getTexture(FileManager::GUI_ICON, "down.png");
     m_screen_tex = irr_driver->getTexture(FileManager::GUI_ICON, "screen_other.png");
-    m_steering_wheel_tex_mask_up = irr_driver->getTexture(FileManager::GUI_ICON,
-                                        "android/steering_wheel_mask_up.png");
-    m_steering_wheel_tex_mask_down = irr_driver->getTexture(FileManager::GUI_ICON,
-                                        "android/steering_wheel_mask_down.png");
-
+#ifndef SERVER_ONLY
+    if (CVS->isGLSL())
+    {
+        m_steering_wheel_tex_mask_up = irr_driver->getTexture(FileManager::GUI_ICON,
+                                            "android/steering_wheel_mask_up.png");
+        m_steering_wheel_tex_mask_down = irr_driver->getTexture(FileManager::GUI_ICON,
+                                            "android/steering_wheel_mask_down.png");
+    }
+#endif
     auto cl = LobbyProtocol::get<ClientLobby>();
     
     if (cl && cl->isSpectator())
@@ -316,7 +320,7 @@ void RaceGUIMultitouch::createSpectatorGUI()
 //-----------------------------------------------------------------------------
 /** Callback function when custom button is pressed
  */
-void RaceGUIMultitouch::onCustomButtonPress(unsigned int button_id,
+void RaceGUIMultitouch::onCustomButtonPress(unsigned int button_id, 
                                             bool pressed)
 {
     if (!pressed)
@@ -378,26 +382,25 @@ void RaceGUIMultitouch::draw(const AbstractKart* kart,
 
         if (button->type == MultitouchButtonType::BUTTON_STEERING)
         {
-            video::SColor color((unsigned)-1);
             video::ITexture* btn_texture = m_steering_wheel_tex;
             core::rect<s32> coords(pos_zero, btn_texture->getSize());
-            draw2DImageRotationColor(btn_texture, btn_pos, coords, NULL,
-                (button->axis_y >= 0 ? -1 : 1) * button->axis_x, color);
+            draw2DImage(btn_texture, btn_pos, coords, NULL, NULL, true, false/*draw_translucently*/,
+                (button->axis_y >= 0 ? -1 : 1) * button->axis_x);
+#ifndef SERVER_ONLY
             AbstractKart* k = NULL;
             Camera* c = Camera::getActiveCamera();
             if (c)
                 k = c->getKart();
-            if (k)
+            if (CVS->isGLSL() && k)
             {
                 float accel = k->getControls().getAccel();
                 core::rect<s32> mask_coords(pos_zero, m_steering_wheel_tex_mask_up->getSize());
-                color.setAlpha(core::clamp((int)(accel >= 0.0f ? accel * 128.0f : 0), 0, 255));
-                draw2DImageRotationColor(m_steering_wheel_tex_mask_up, btn_pos, mask_coords, NULL,
-                    (button->axis_y >= 0 ? -1 : 1) * button->axis_x, color);
-                color.setAlpha(k->getControls().getBrake() ? 128 : 0);
-                draw2DImageRotationColor(m_steering_wheel_tex_mask_down, btn_pos, mask_coords, NULL,
-                    (button->axis_y >= 0 ? -1 : 1) * button->axis_x, color);
+                draw2DImageCustomAlpha(m_steering_wheel_tex_mask_up, btn_pos, mask_coords, NULL,
+                    (button->axis_y >= 0 ? -1 : 1) * button->axis_x, accel >= 0.0f ? accel * 0.5f : 0.0f);
+                draw2DImageCustomAlpha(m_steering_wheel_tex_mask_down, btn_pos, mask_coords, NULL,
+                    (button->axis_y >= 0 ? -1 : 1) * button->axis_x, k->getControls().getBrake() ? 0.5f : 0.0f);
             }
+#endif
             // float x = (float)(button->x) + (float)(button->width) / 2.0f *
             //                                          (button->axis_x + 1.0f);
             // float y = (float)(button->y) + (float)(button->height) / 2.0f *
@@ -513,10 +516,10 @@ void RaceGUIMultitouch::draw(const AbstractKart* kart,
             if (btn_texture)
             {
                 video::ITexture* btn_bg = (can_be_pressed && button->pressed) ?
-                                                        m_bg_button_focus_tex :
+                                                        m_bg_button_focus_tex : 
                                                         m_bg_button_tex;
                 core::rect<s32> coords_bg(pos_zero, btn_bg->getSize());
-                draw2DImage(btn_bg, btn_pos_bg, coords_bg, NULL, NULL, true);
+                draw2DImage(btn_bg, btn_pos_bg, coords_bg, NULL, NULL, true);                
 
                 core::rect<s32> coords(pos_zero, btn_texture->getSize());
                 draw2DImage(btn_texture, btn_pos, coords, NULL, NULL, true);
@@ -534,7 +537,7 @@ void RaceGUIMultitouch::draw(const AbstractKart* kart,
                                             core::vector2df(scale, scale));
             }
             else if (button->type == MultitouchButtonType::BUTTON_FIRE &&
-                     kart->getPowerup()->getNum() > 1 &&
+                     kart->getPowerup()->getNum() > 1 && 
                      !kart->hasFinishedRace() &&
                      m_gui_action == false)
             {

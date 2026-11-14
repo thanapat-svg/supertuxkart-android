@@ -45,8 +45,6 @@
 #include "utils/profiler.hpp"
 #include "utils/stk_process.hpp"
 
-#include <IVideoDriver.h>
-
 //=============================================================================
 Physics* g_physics[PT_COUNT];
 // ----------------------------------------------------------------------------
@@ -141,7 +139,7 @@ void Physics::addKart(const AbstractKart *kart)
             return;
     }
     m_dynamics_world->addRigidBody(kart->getBody());
-    m_dynamics_world->addAction(kart->getVehicle());
+    m_dynamics_world->addVehicle(kart->getVehicle());
 }   // addKart
 
 //-----------------------------------------------------------------------------
@@ -168,7 +166,7 @@ void Physics::removeKart(const AbstractKart *kart)
     else
     {
         m_dynamics_world->removeRigidBody(kart->getBody());
-        m_dynamics_world->removeAction(kart->getVehicle());
+        m_dynamics_world->removeVehicle(kart->getVehicle());
     }
 }   // removeKart
 
@@ -176,9 +174,9 @@ void Physics::removeKart(const AbstractKart *kart)
 /** Updates the physics simulation and handles all collisions.
  *  \param ticks Number of physics steps to simulate.
  */
-void Physics::update()
+void Physics::update(int ticks)
 {
-    PROFILER_PUSH_CPU_MARKER("-- Physics - step simulation", 0, 0, 0);
+    PROFILER_PUSH_CPU_MARKER("Physics", 0, 0, 0);
 
     m_physics_loop_active = true;
     // Bullet can report the same collision more than once (up to 4
@@ -192,21 +190,17 @@ void Physics::update()
     // Since the world update (which calls physics update) is called at the
     // fixed frequency necessary for the physics update, we need to do exactly
     // one physic step only.
-    const bool physics_debug = UserConfigParams::m_physics_debug;
     double start;
-    if (physics_debug) start = StkTime::getRealTime();
+    if(UserConfigParams::m_physics_debug) start = StkTime::getRealTime();
 
     m_dynamics_world->stepSimulation(stk_config->ticks2Time(1), 1,
                                      stk_config->ticks2Time(1)      );
-    if (physics_debug)
+    if (UserConfigParams::m_physics_debug)
     {
         Log::verbose("Physics", "At %d physics duration %12.8f",
                      World::getWorld()->getTicksSinceStart(),
                      StkTime::getRealTime() - start);
     }
-
-    PROFILER_POP_CPU_MARKER();
-    PROFILER_PUSH_CPU_MARKER("-- Physics - collision handling", 0, 0, 0);
 
     // Now handle the actual collision. Note: flyables can not be removed
     // inside of this loop, since the same flyables might hit more than one
@@ -291,7 +285,7 @@ void Physics::update()
                     World::getWorld()->kartHit(kart->getWorldKartId());
                 }
             }
-            else if(obj->isSoccerBall() &&
+            else if(obj->isSoccerBall() && 
                     RaceManager::get()->getMinorMode() == RaceManager::MINOR_MODE_SOCCER)
             {
                 SoccerWorld* soccerWorld = (SoccerWorld*)World::getWorld();
@@ -363,7 +357,7 @@ void Physics::update()
             }
             flyable->hit(NULL, obj);
 
-            if (obj->isSoccerBall() &&
+            if (obj->isSoccerBall() && 
                 RaceManager::get()->getMinorMode() == RaceManager::MINOR_MODE_SOCCER)
             {
                 int kartId = p->getUserPointer(0)->getPointerFlyable()->getOwnerId();

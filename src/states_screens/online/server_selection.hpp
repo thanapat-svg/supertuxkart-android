@@ -31,7 +31,6 @@ namespace GUIEngine
     class CheckBoxWidget;
     class IconButtonWidget;
     class LabelWidget;
-    class SpinnerWidget;
 }
 
 namespace irr
@@ -62,7 +61,7 @@ private:
 
     std::vector<std::shared_ptr<Server> > m_servers;
 
-    GUIEngine::SpinnerWidget* m_server_type;
+    GUIEngine::CheckBoxWidget* m_private_server;
     GUIEngine::CheckBoxWidget* m_ipv6;
     GUIEngine::IconButtonWidget* m_reload_widget;
     GUIEngine::IconButtonWidget* m_bookmark_widget;
@@ -75,8 +74,6 @@ private:
 
     /** \brief To check (and set) if sort order is descending **/
     bool m_sort_desc;
-
-    bool m_sort_default;
 
     int m_current_column;
 

@@ -72,8 +72,6 @@ protected:
 
     int m_current_ai;
 
-    uint32_t m_bookmark_id;
-
     /** The public ip address and port of this server. */
     std::unique_ptr<SocketAddress> m_address;
 
@@ -105,8 +103,6 @@ protected:
     bool m_ipv6_connection;
 
     bool m_reconnect_when_quit_lobby;
-
-    bool m_aes_gcm_128bit_tag;
 
     std::vector<std::tuple<
         /*rank*/int, core::stringw, /*scores*/double, /*playing time*/float
@@ -179,13 +175,7 @@ public:
     // ------------------------------------------------------------------------
     void setPrivatePort(uint16_t port)               { m_private_port = port; }
     // ------------------------------------------------------------------------
-    void setSupportsEncryption(bool val)
-    {
-        m_supports_encrytion = val;
-        // We assume that a custom-defined server supports AES GCM 128bit tag
-        if (m_supports_encrytion)
-            m_aes_gcm_128bit_tag = true;
-    }
+    void setSupportsEncryption(bool val)        { m_supports_encrytion = val; }
     // ------------------------------------------------------------------------
     bool searchByName(const std::string& lower_case_word);
     // ------------------------------------------------------------------------
@@ -223,13 +213,7 @@ public:
     // ------------------------------------------------------------------------
     std::string getBookmarkKey() const;
     // ------------------------------------------------------------------------
-    const int getCurrentAI() const                     { return m_current_ai; }
-    // ------------------------------------------------------------------------
-    uint32_t getBookmarkID() const                    { return m_bookmark_id; }
-    // ------------------------------------------------------------------------
-    void setBookmarkID(uint32_t id)                     { m_bookmark_id = id; }
-    // ------------------------------------------------------------------------
-    bool supportsAESGCM128BitTag() const       { return m_aes_gcm_128bit_tag; }
+    const int getCurrentAI() const { return m_current_ai; }
 };   // Server
 
 class UserDefinedServer : public Server

@@ -32,7 +32,7 @@
 #include <assert.h> // assert()
 #include <sstream>  // std::stringstream
 #include <string.h> // strstr()
-#include <stdio.h>  // snprintf()
+#include <stdio.h>  // sprintf()
 #include <stdlib.h> // strtod()
 #ifndef __psp2__
     #include <locale.h> // setlocale()
@@ -62,9 +62,9 @@ class CStdStringFactory : public asIStringFactory
 {
 public:
     CStdStringFactory() {}
-    ~CStdStringFactory()
+    ~CStdStringFactory() 
     {
-        // The script engine must release each string
+        // The script engine must release each string 
         // constant that it has requested
         if (!stringCache.empty())
         {
@@ -468,8 +468,12 @@ static string formatInt(asINT64 value, const string &options, asUINT width)
 
     string buf;
     buf.resize(width+30);
-    snprintf(&buf[0], buf.size(), fmt.c_str(), width, value);
-
+#if _MSC_VER >= 1400 && !defined(__S3E__)
+    // MSVC 8.0 / 2005 or newer
+    sprintf_s(&buf[0], buf.size(), fmt.c_str(), width, value);
+#else
+    sprintf(&buf[0], fmt.c_str(), width, value);
+#endif
     buf.resize(strlen(&buf[0]));
 
     return buf;
@@ -508,8 +512,12 @@ static string formatUInt(asQWORD value, const string &options, asUINT width)
 
     string buf;
     buf.resize(width+30);
-    snprintf(&buf[0], buf.size(), fmt.c_str(), width, value);
-
+#if _MSC_VER >= 1400 && !defined(__S3E__)
+    // MSVC 8.0 / 2005 or newer
+    sprintf_s(&buf[0], buf.size(), fmt.c_str(), width, value);
+#else
+    sprintf(&buf[0], fmt.c_str(), width, value);
+#endif
     buf.resize(strlen(&buf[0]));
 
     return buf;
@@ -540,8 +548,12 @@ static string formatFloat(double value, const string &options, asUINT width, asU
 
     string buf;
     buf.resize(width+precision+50);
-    snprintf(&buf[0], buf.size(), fmt.c_str(), width, precision, value);
-
+#if _MSC_VER >= 1400 && !defined(__S3E__)
+    // MSVC 8.0 / 2005 or newer
+    sprintf_s(&buf[0], buf.size(), fmt.c_str(), width, precision, value);
+#else
+    sprintf(&buf[0], fmt.c_str(), width, precision, value);
+#endif
     buf.resize(strlen(&buf[0]));
 
     return buf;

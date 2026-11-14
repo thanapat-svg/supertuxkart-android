@@ -14,8 +14,6 @@
 
 #if !defined(SERVER_ONLY) && defined(_IRR_COMPILE_WITH_SDL_DEVICE_)
 #include "SDL_video.h"
-#else
-#define SDL_Window void
 #endif
 
 namespace irr
@@ -60,9 +58,7 @@ namespace irr
 			UsePerformanceTimer(true),
             ForceLegacyDevice(false),
             ShadersPath(""),
-			SDK_version_do_not_use(IRRLICHT_SDK_VERSION),
-			PrivateData(NULL),
-			m_sdl_window(NULL)
+			SDK_version_do_not_use(IRRLICHT_SDK_VERSION)
 		{
 		}
 
@@ -98,7 +94,6 @@ namespace irr
             ShadersPath = other.ShadersPath;
 			PrivateData = other.PrivateData;
 			WindowPosition = other.WindowPosition;
-			m_sdl_window = other.m_sdl_window;
 			return *this;
 		}
 
@@ -332,7 +327,6 @@ namespace irr
 		Java RE. */
 		void *PrivateData;
 
-		SDL_Window* m_sdl_window;
 	};
 
 

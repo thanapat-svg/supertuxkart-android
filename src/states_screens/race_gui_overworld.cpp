@@ -24,7 +24,7 @@
 #include "challenges/unlock_manager.hpp"
 #include "config/player_manager.hpp"
 #include "config/user_config.hpp"
-#include "graphics/camera/camera.hpp"
+#include "graphics/camera.hpp"
 #include "graphics/2dutils.hpp"
 #ifndef SERVER_ONLY
 #include "graphics/glwrap.hpp"
@@ -55,14 +55,8 @@
 #include "utils/string_utils.hpp"
 #include "utils/translation.hpp"
 
-#include <IrrlichtDevice.h>
 #include <ISceneCollisionManager.h>
 #include <ISceneManager.h>
-
-#ifdef ANDROID
-#include <SDL_system.h>
-#endif
-
 using namespace irr;
 
 #include <algorithm>
@@ -93,7 +87,7 @@ RaceGUIOverworld::RaceGUIOverworld()
     m_trophy[2] = irr_driver->getTexture(FileManager::GUI_ICON, "cup_gold.png"  );
     m_trophy[3] = irr_driver->getTexture(FileManager::GUI_ICON, "cup_platinum.png"  );
 
-    bool multitouch_enabled = (UserConfigParams::m_multitouch_active == 1 &&
+    bool multitouch_enabled = (UserConfigParams::m_multitouch_active == 1 && 
                                irr_driver->getDevice()->supportsTouchDevice()) ||
                                UserConfigParams::m_multitouch_active > 1;
     
@@ -146,14 +140,14 @@ RaceGUIOverworld::~RaceGUIOverworld()
 //-----------------------------------------------------------------------------
 void RaceGUIOverworld::calculateMinimapSize()
 {
-    float scaling = std::min(irr_driver->getFrameSize().Height,
+    float scaling = std::min(irr_driver->getFrameSize().Height,  
         irr_driver->getFrameSize().Width) / 420.0f;
     const float map_size = 250.0f;
     
     // Check if we have enough space for minimap when touch steering is enabled
     if (m_multitouch_gui != NULL)
     {
-        const float map_bottom = (float)(irr_driver->getActualScreenSize().Height -
+        const float map_bottom = (float)(irr_driver->getActualScreenSize().Height - 
                                          m_multitouch_gui->getHeight());
         
         if ((map_size + 20.0f) * scaling > map_bottom)
@@ -161,10 +155,10 @@ void RaceGUIOverworld::calculateMinimapSize()
             scaling = map_bottom / (map_size + 20.0f);
         }
         
-        // Use some reasonable minimum scale, because minimap size can be
+        // Use some reasonable minimum scale, because minimap size can be 
         // changed during the race
         scaling = std::max(scaling,
-                           irr_driver->getActualScreenSize().Height * 0.2f /
+                           irr_driver->getActualScreenSize().Height * 0.2f / 
                            (map_size + 20.0f));
     }
 
@@ -185,7 +179,7 @@ void RaceGUIOverworld::calculateMinimapSize()
 
     if (m_multitouch_gui != NULL)
     {
-        m_map_left = (int)((irr_driver->getActualScreenSize().Width -
+        m_map_left = (int)((irr_driver->getActualScreenSize().Width - 
                                                         m_map_width) * 0.9f);
         m_map_bottom = m_map_height + int(10 * scaling);
     }
@@ -531,11 +525,6 @@ void RaceGUIOverworld::drawGlobalMiniMap()
 
             if (challenges[n].m_challenge_id == "tutorial")
             {
-#ifdef ANDROID
-                if (SDL_IsAndroidTV())
-                    continue;
-#endif
-
                 gui::ScalableFont* font = GUIEngine::getTitleFont();
                 font->draw(_("Tutorial"), pos, video::SColor(255,255,255,255),
                            false, true /* vcenter */, NULL);

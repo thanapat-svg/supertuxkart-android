@@ -31,16 +31,13 @@ namespace irr
                       class ISceneNode; class IMeshSceneNode; }
 }
 using namespace irr;
-namespace GE { class GERenderInfo; class GESPM; }
-namespace SP { class SPMesh; }
 
-#include "utils/constants.hpp"
 #include "utils/no_copy.hpp"
 #include "utils/vec3.hpp"
 
 class AbstractKart;
 class KartProperties;
-class MovingTexture;
+namespace GE { class GERenderInfo; }
 class XMLNode;
 
 /** A speed-weighted object is an object whose characteristics are influenced by the kart's speed */
@@ -51,17 +48,14 @@ struct SpeedWeightedObject
     {
         Properties();
 
-        ~Properties();
-
-        Properties& operator=(const Properties& other);
-
         /** Strength factor: how much the kart speed affects the animation's distance from a static pose (-1 to disable) */
         float               m_strength_factor;
 
         /** Speed factor: how much the kart speed affects the animation's speed (-1 to disable) */
         float               m_speed_factor;
 
-        MovingTexture*      m_moving_texture;
+        /** Texture speed, in UV coordinates */
+        core::vector2df     m_texture_speed;
 
         void    loadFromXMLNode(const XMLNode* xml_node);
 
@@ -84,22 +78,15 @@ struct SpeedWeightedObject
     /** Attach to which bone in kart model if not empty. */
     std::string                         m_bone_name;
 
+    /** Current uv translation in the texture matrix for speed-weighted texture animations */
+    core::vector2df                     m_texture_cur_offset;
+
     /** Specific properties for this given speed-weighted object,
       * otherwise just a copy of the values from the kart's properties */
     Properties                          m_properties;
 };
 typedef std::vector<SpeedWeightedObject>    SpeedWeightedObjectList;
 
-
-// ============================================================================
-enum HeadlightType : int
-{
-    HLT_UNKNOWN = -1,
-    HLT_POINT = 0,
-    HLT_SPOT,
-    HLT_MESH,
-    HLT_COUNT,
-};
 // ============================================================================
 /** A class to store the headlights of a kart.
  */
@@ -125,43 +112,16 @@ private:
     /** Attach to which bone in kart model if not empty. */
     std::string m_bone_name;
 
-    HeadlightType m_headlight_type;
-
-    float m_radius;
-
-    float m_energy;
-
-    float m_inner_cone;
-
-    float m_outer_cone;
 public:
-    // ------------------------------------------------------------------------
-    static HeadlightType getHeadlightTypeFromString(const std::string& s)
-    {
-        if (s == "point")
-            return HLT_POINT;
-        if (s == "spot")
-            return HLT_SPOT;
-        if (s == "mesh")
-            return HLT_MESH;
-        return HLT_UNKNOWN;
-    }
-    // ------------------------------------------------------------------------
+
     HeadlightObject()
     {
         m_model    = NULL;
         m_node     = NULL;
-        m_headlight_type = HLT_POINT;
-        m_radius = 0.0f;
-        m_energy = 0.0f;
-        m_inner_cone = 0.0f;
-        m_outer_cone = 0.0f;
     }   // HeadlightObject
     // ------------------------------------------------------------------------
     HeadlightObject(const std::string& filename, const core::matrix4& location,
-                    const std::string& bone_name, const video::SColor& color,
-                    HeadlightType headlight_type, float radius, float energy,
-                    float inner_cone, float outer_cone)
+                    const std::string& bone_name, const video::SColor& color)
     {
         m_filename = filename;
         m_location = location;
@@ -169,11 +129,6 @@ public:
         m_node     = NULL;
         m_bone_name = bone_name;
         m_headlight_color = color;
-        m_headlight_type = headlight_type;
-        m_radius = radius;
-        m_energy = energy;
-        m_inner_cone = inner_cone;
-        m_outer_cone = outer_cone;
     }   // HeadlightObjects
     // ------------------------------------------------------------------------
     const std::string& getFilename() const { return m_filename; }
@@ -181,9 +136,7 @@ public:
     /** Sets the mesh for this headlight object. */
     void setModel(scene::IMesh *mesh) { m_model = mesh; }
     // ------------------------------------------------------------------------
-    void setLight(scene::ISceneNode* parent);
-    // ------------------------------------------------------------------------
-    void setLightNode(scene::ISceneNode* node) { m_node = node; }
+    void setLight(scene::ISceneNode* parent, float energy, float radius);
     // ------------------------------------------------------------------------
     const scene::ISceneNode *getLightNode() const { return m_node;  }
     // ------------------------------------------------------------------------
@@ -197,24 +150,6 @@ public:
     // ------------------------------------------------------------------------
     const std::string& getBoneName() const { return m_bone_name; }
     // ------------------------------------------------------------------------
-    HeadlightType getHeadlightType() const { return m_headlight_type; }
-    // ------------------------------------------------------------------------
-    void setRadius(float radius) { m_radius = radius; }
-    // ------------------------------------------------------------------------
-    void setEnergy(float energy) { m_energy = energy; }
-    // ------------------------------------------------------------------------
-    void setDefaultConeValues(unsigned light_count)
-    {
-        float outer_cone_angle = (light_count == 1 ? 45.0f : 50.0f);
-        m_outer_cone = outer_cone_angle / 180.0f * M_PI;
-        m_inner_cone = m_outer_cone / 1.5f;
-    }
-    // ------------------------------------------------------------------------
-    bool useDefaultSettings() const
-    {
-        return m_radius == 0.0f && m_energy == 0.0f && m_inner_cone == 0.0f &&
-            m_outer_cone == 0.0f;
-    }
 };   // class HeadlightObject
 
 // ============================================================================
@@ -276,9 +211,6 @@ private:
 
     /** Location of hat in object space. */
     core::matrix4* m_hat_location;
-
-    /** The mesh for the seasonal hat. */
-    scene::IAnimatedMesh* m_hat_mesh;
 
     /** Name of the bone for hat attachment. */
     std::string m_hat_bone;
@@ -365,9 +297,9 @@ private:
     void  loadNitroEmitterInfo(const XMLNode &node,
                         const std::string &emitter_name, int index);
 
-    void  loadSpeedWeightedInfo(const XMLNode* speed_weighted_node, int index);
+    void  loadSpeedWeightedInfo(const XMLNode* speed_weighted_node);
 
-    void  loadHeadlights(const XMLNode &node, const std::string& kart_dir);
+    void  loadHeadlights(const XMLNode &node);
 
     void OnAnimationEnd(scene::IAnimatedMeshSceneNode *node);
 
@@ -406,10 +338,6 @@ private:
         node->setRotation(rotation);
         node->setScale(scale);
     }
-    // ------------------------------------------------------------------------
-    bool handleSpotlight(GE::GESPM* spm);
-    // ------------------------------------------------------------------------
-    bool handleSPSpotlight(SP::SPMesh* spm);
 
 public:
                   KartModel(bool is_master);

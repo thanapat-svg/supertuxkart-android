@@ -26,7 +26,6 @@
 #include "guiengine/widget.hpp"
 #include "utils/leak_check.hpp"
 #include "utils/ptr_vector.hpp"
-#include "utils/cpp2011.hpp"
 
 namespace GUIEngine
 {
@@ -53,8 +52,10 @@ namespace GUIEngine
         
         RatingBarWidget();
         virtual ~RatingBarWidget() {}
+        
 
-        void add() OVERRIDE;
+
+        void add();
         
         /** Change the rating value of the widget. */
         void setRating(float rating);
@@ -67,21 +68,12 @@ namespace GUIEngine
         
         /** Get the current number of stars of the widget. */
         int getStarNumber() {return m_stars; };
-
-        /** Set steps in each star. Interpolate steps-2 values between 0 star and 1 star. */
-        void setSteps(int steps) { m_steps = steps; }
-
-        int getSteps() { return m_steps; }
         
         int getStepsOfStar(int index);
 
         void setStepValuesByMouse(const core::position2di & mouse_position, const core::recti & stars_rect);
 
-        virtual EventPropagation rightPressed(const int playerID=0) OVERRIDE;
-        virtual EventPropagation leftPressed (const int playerID=0) OVERRIDE;
-
-        /** True if succeed, false if fail */
-        bool updateRating();
+        virtual EventPropagation onClick();
 
         void allowVoting() { m_allow_voting = true; }
     };

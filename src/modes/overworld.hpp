@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "modes/world.hpp"
+#include "utils/aligned_array.hpp"
 
 #include "LinearMath/btTransform.h"
 

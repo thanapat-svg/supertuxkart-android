@@ -20,7 +20,7 @@
 #include "main_loop.hpp"
 #include "audio/music_manager.hpp"
 #include "config/user_config.hpp"
-#include "graphics/camera/camera.hpp"
+#include "graphics/camera.hpp"
 #include "graphics/irr_driver.hpp"
 #include <ge_render_info.hpp>
 #include "io/file_manager.hpp"
@@ -539,30 +539,6 @@ void ThreeStrikesBattle::getKartsDisplayInfo(
 }   // getKartsDisplayInfo
 
 //-----------------------------------------------------------------------------
-std::pair<int, video::SColor> ThreeStrikesBattle::getSpeedometerDigit(
-                                                const AbstractKart *kart) const
-{
-    video::SColor color = video::SColor(255, 255, 255, 255);
-    int id = kart->getWorldKartId();
-    switch(m_kart_info[id].m_lives)
-    {
-        case 3:
-            color = video::SColor(255, 0, 255, 0);
-            break;
-        case 2:
-            color = video::SColor(255, 255, 229, 0);
-            break;
-        case 1:
-            color = video::SColor(255, 255, 0, 0);
-            break;
-        case 0:
-            color = video::SColor(255, 128, 128, 128);
-            break;
-    }
-    return std::make_pair(m_kart_info[id].m_lives, color);
-}   // getSpeedometerDigit
-
-//-----------------------------------------------------------------------------
 void ThreeStrikesBattle::enterRaceOverState()
 {
     WorldWithRank::enterRaceOverState();
@@ -664,8 +640,7 @@ void ThreeStrikesBattle::spawnSpareTireKarts()
     {
         m_race_gui->addMessage(_P("%i spare tire kart has been spawned!",
                                 "%i spare tire karts have been spawned!",
-                                /* to pick the plural form */ spawn_sta,
-                                /* to insert in the final string */spawn_sta), NULL, 2.0f);
+                                spawn_sta), NULL, 2.0f);
     }
     for (unsigned int i = 0; i < spawn_sta; i++)
     {
@@ -701,24 +676,16 @@ void ThreeStrikesBattle::loadCustomModels()
                 int node = -1;
                 ag->findRoadSector(getRescueTransform(i).getOrigin(), &node,
                     NULL, true);
-                if (node == -1)
-                {
-                    Log::warn("ThreeStrikesBattle",
-                        "Start position %i is not a valid rescue position", i);
-                }
-                else
-                {
-                    sta_possible_nodes.erase(std::remove_if(
-                        sta_possible_nodes.begin(), sta_possible_nodes.end(),
-                        [node](const int n) { return n == node; }),
-                        sta_possible_nodes.end());
-                }
+                assert(node != -1);
+                sta_possible_nodes.erase(std::remove_if(
+                    sta_possible_nodes.begin(), sta_possible_nodes.end(),
+                    [node](const int n) { return n == node; }),
+                    sta_possible_nodes.end());
             }
 
             // Find random nodes to pre-spawn spare tire karts
-            std::shuffle(sta_possible_nodes.begin(),
-                         sta_possible_nodes.end(),
-                         RandomGenerator::getGenerator());
+            std::random_shuffle(sta_possible_nodes.begin(),
+                sta_possible_nodes.end());
 
             // Compute a random kart list
             std::vector<std::string> sta_list;

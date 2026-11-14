@@ -29,7 +29,6 @@
 #include "utils/log.hpp"
 
 #include <algorithm>
-#include <IFileSystem.h>
 
 namespace SP
 {
@@ -123,16 +122,9 @@ SPShaderManager::SPShaderManager()
                 glEnable(GL_DEPTH_TEST);
                 glDepthMask(GL_TRUE);
                 glEnable(GL_CULL_FACE);
-                glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
-            }
-        }
-    };
-
-    m_official_unuse_functions =
-    {
-        { "ghostUnuse", []()
-            {
-                glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+                glEnable(GL_BLEND);
+                glBlendEquation(GL_FUNC_ADD);
+                glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
             }
         }
     };
@@ -387,7 +379,7 @@ std::shared_ptr<SPShader> SPShaderManager::buildSPShader(const ShaderInfo& si,
     std::shared_ptr<SPShader> sps;
 #ifndef SERVER_ONLY
     sps = std::make_shared<SPShader>(si.m_shader_name,
-        [pi, ua, skinned](SPShader* shader)
+        [this, pi, ua, skinned](SPShader* shader)
         {
             // First pass
             assert(!pi[0].m_vertex_shader.empty() ||

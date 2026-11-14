@@ -97,7 +97,7 @@ void Skidding::reset()
  *  state). Similarly m_real_steering is output of updateRewind() and will be
  *  recomputed every frame when update() is called, and similar for
  *  m_skid_bonus_ready
- *  \param buffer Buffer for the state information.
+ *  \param buffer Buffer for the state information. 
  */
 void Skidding::saveState(BareNetworkString *buffer)
 {
@@ -109,7 +109,7 @@ void Skidding::saveState(BareNetworkString *buffer)
 
 // ----------------------------------------------------------------------------
 /** Restores the skidding state of a kart.
- *  \param buffer Buffer with state information.
+ *  \param buffer Buffer with state information. 
  */
 void Skidding::rewindTo(BareNetworkString *buffer)
 {
@@ -209,13 +209,6 @@ float Skidding::updateSteering(float steer, int ticks)
         }   // case SKID_ACCUMULATE_LEFT
 
     }   // switch m_skid_state
-
-    // A visual rotation outside of [-1, 1] bounds leads to severe graphical errors
-    // This allows the "reduce-turn-max" parameter for skidding to be set arbitrarily.
-    if (m_visual_rotation > 1.0f)
-        m_visual_rotation = 1.0f;
-    if (m_visual_rotation < -1.0f)
-        m_visual_rotation = -1.0f;
 
     return steer_result;
 }   // updateSteering

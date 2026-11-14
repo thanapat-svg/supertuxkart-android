@@ -19,12 +19,10 @@
 #define HEADER_CREATE_SERVER_SCREEN_HPP
 
 #include "guiengine/screen.hpp"
+#include "guiengine/widgets.hpp"
 
-namespace GUIEngine
-{
-    class IconButtonWidget; class LabelWidget; class RibbonWidget;
-    class SpinnerWidget; class TextBoxWidget; class Widget;
-}
+
+namespace GUIEngine { class Widget; class ListWidget; }
 
 /**
   * \brief Handles the main menu
@@ -53,7 +51,6 @@ private:
     GUIEngine::RibbonWidget * m_options_widget;
     GUIEngine::IconButtonWidget * m_create_widget;
     GUIEngine::IconButtonWidget * m_cancel_widget;
-    GUIEngine::IconButtonWidget * m_back_widget;
 
     void createServer();
     void updateMoreOption(int game_mode);

@@ -27,7 +27,6 @@
 #include "io/xml_node.hpp"
 #include "items/item.hpp"
 #include "karts/kart_properties.hpp"
-#include "replay/replay_play.hpp"
 #include "utils/log.hpp"
 #include "utils/string_utils.hpp"
 
@@ -231,8 +230,6 @@ void STKConfig::init_defaults()
     m_replay_dt                  = -100;
     m_donate_url                 = "";
     m_password_reset_url         = "";
-    m_terms_url                  = "";
-    m_privacy_url                = "";
     m_no_explosive_items_timeout = -100.0f;
     m_max_moveable_objects       = -100;
     m_solver_iterations          = -100;
@@ -557,11 +554,8 @@ void STKConfig::getAllData(const XMLNode * root)
 
     if (const XMLNode *urls = root->getNode("urls"))
     {
-        urls->get("stk-website", &m_stk_website_url);
         urls->get("donate", &m_donate_url);
         urls->get("password-reset", &m_password_reset_url);
-        urls->get("terms-and-conditions", &m_terms_url);
-        urls->get("privacy-policy", &m_privacy_url);
         urls->get("assets-download", &m_assets_download_url);
     }
 
@@ -622,18 +616,6 @@ void STKConfig::getAllData(const XMLNode * root)
         }
     }
 
-    if (const XMLNode* bm = root->getNode("benchmark"))
-    {
-        for (unsigned int i = 0; i < bm->getNumNodes(); i++)
-        {
-            const XMLNode* name = bm->getNode(i);
-            std::string bench_file;
-            name->get("name", &bench_file);
-            if (!bench_file.empty())
-                m_benchmark_files.push_back(bench_file);
-        }
-    }
-
     // Get the default KartProperties
     // ------------------------------
     const XMLNode *node = root -> getNode("general-kart-defaults");
@@ -643,7 +625,7 @@ void STKConfig::getAllData(const XMLNode * root)
         msg << "Couldn't load general-kart-defaults: no node.";
         throw std::runtime_error(msg.str());
     }
-    m_default_kart_properties->getAllData(node, true /* from stk_config */);
+    m_default_kart_properties->getAllData(node);
     const XMLNode *child_node = node->getNode("kart-type");
 
     for (unsigned int i = 0; i < child_node->getNumNodes(); ++i)
@@ -651,37 +633,9 @@ void STKConfig::getAllData(const XMLNode * root)
         const XMLNode* type = child_node->getNode(i);
         m_kart_properties[type->getName()] = new KartProperties();
         m_kart_properties[type->getName()]->copyFrom(m_default_kart_properties);
-        m_kart_properties[type->getName()]->getAllData(type, true /* from stk_config */);
+        m_kart_properties[type->getName()]->getAllData(type);
     }
 }   // getAllData
-
-// ----------------------------------------------------------------------------
-/** With ReplayPlay and the list of tracks loaded, check if the replay files
- * for the benchmark list exist, have a valid and compatible replay header,
- * and correspond to a track that's available.
- */
-void STKConfig::validateBenchmarkReplays()
-{
-    for (auto it = m_benchmark_files.begin(); it != m_benchmark_files.end();)
-    {
-        std::string bench_file = *it;
-        const bool result = ReplayPlay::get()->addReplayFile(file_manager
-            ->getAsset(FileManager::REPLAY, bench_file), true /*custom_replay */);
-        if (!result)
-        {
-            Log::error("StkConfig", "Replay %s from the benchmark list is missing or invalid!",
-                bench_file.c_str());
-            it = m_benchmark_files.erase(it);
-            continue;
-        }
-        
-        it++;
-    }
-
-    stk_config->m_active_benchmark_file = "";
-    if(!m_benchmark_files.empty())
-        stk_config->m_active_benchmark_file = stk_config->m_benchmark_files[0];
-} // validateBenchmarkReplays
 
 // ----------------------------------------------------------------------------
 /** Init the music files after downloading assets

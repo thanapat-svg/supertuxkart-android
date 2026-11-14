@@ -99,7 +99,7 @@ private:
     /** Counts how often an item is used before it disappears. Used for
      *  bubble gum to make them disappear after a while. A value >0
      *  indicates that the item still exists, =0 that the item can be
-     *  deleted, and <0 that the item will never be deleted, i.e. it
+     *  deleted, and <0 that the item will never be deleted, i.e. it 
      *  will always reappear after a while. */
     int m_used_up_counter;
 
@@ -173,7 +173,7 @@ public:
     }   // hitKart
 
     // -----------------------------------------------------------------------
-    virtual int getGraphNode() const
+    virtual int getGraphNode() const 
     {
         Log::fatal("ItemState", "getGraphNode() called for ItemState.");
         return 0;
@@ -329,9 +329,6 @@ private:
 
     /** Graphical type of the mesh. */
     ItemType m_graphical_type;
-
-    /** The parent of m_spark_nodes and m_icon_node */
-    scene::ISceneNode* m_appear_anime_node;
 
     /** Vector containing the sparks */
     std::vector<scene::ISceneNode*> m_spark_nodes;

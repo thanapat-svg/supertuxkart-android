@@ -23,6 +23,10 @@
 #include "utils/no_copy.hpp"
 #include "utils/synchronised.hpp"
 
+#ifdef WIN32
+#  include <winsock2.h>
+#endif
+#include <curl/curl.h>
 #include <assert.h>
 #include <memory>
 #include <string>

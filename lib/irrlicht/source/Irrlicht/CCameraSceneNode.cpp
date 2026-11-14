@@ -99,7 +99,10 @@ const core::matrix4& CCameraSceneNode::getViewMatrixAffector() const
 
 
 //! It is possible to send mouse and key events to the camera. Most cameras
-//! may ignore this input.
+//! may ignore this input, but camera scene nodes which are created for
+//! example with scene::ISceneManager::addMayaCameraSceneNode or
+//! scene::ISceneManager::addFPSCameraSceneNode, may want to get this input
+//! for changing their position, look at target or whatever.
 bool CCameraSceneNode::OnEvent(const SEvent& event)
 {
 	if (!InputReceiverEnabled)

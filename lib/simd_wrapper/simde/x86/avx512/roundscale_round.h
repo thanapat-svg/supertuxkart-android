@@ -8,11 +8,6 @@ HEDLEY_DIAGNOSTIC_PUSH
 SIMDE_DISABLE_UNWANTED_DIAGNOSTICS
 SIMDE_BEGIN_DECLS_
 
-#if defined(HEDLEY_MSVC_VERSION)
-#pragma warning( push )
-#pragma warning( disable : 4244 )
-#endif
-
 #if defined(SIMDE_X86_AVX512F_NATIVE)
   #define simde_mm512_roundscale_round_ps(a, imm8, sae) _mm512_roundscale_round_ps(a, imm8, sae)
 #elif defined(SIMDE_FAST_EXCEPTIONS)
@@ -42,7 +37,8 @@ SIMDE_BEGIN_DECLS_
   SIMDE_FUNCTION_ATTRIBUTES
   simde__m512
   simde_mm512_roundscale_round_ps (simde__m512 a, int imm8, int sae)
-      SIMDE_REQUIRE_RANGE(imm8, 0, 15) {
+      SIMDE_REQUIRE_CONSTANT_RANGE(imm8, 0, 15)
+      SIMDE_REQUIRE_CONSTANT(sae) {
     simde__m512 r;
 
     if (sae & SIMDE_MM_FROUND_NO_EXC) {
@@ -97,7 +93,8 @@ SIMDE_BEGIN_DECLS_
   SIMDE_FUNCTION_ATTRIBUTES
   simde__m512
   simde_mm512_mask_roundscale_round_ps (simde__m512 src, simde__mmask8 k, simde__m512 a, int imm8, int sae)
-      SIMDE_REQUIRE_RANGE(imm8, 0, 15) {
+      SIMDE_REQUIRE_CONSTANT_RANGE(imm8, 0, 15)
+      SIMDE_REQUIRE_CONSTANT(sae) {
     simde__m512 r;
 
     if (sae & SIMDE_MM_FROUND_NO_EXC) {
@@ -152,7 +149,8 @@ SIMDE_BEGIN_DECLS_
   SIMDE_FUNCTION_ATTRIBUTES
   simde__m512
   simde_mm512_maskz_roundscale_round_ps (simde__mmask8 k, simde__m512 a, int imm8, int sae)
-      SIMDE_REQUIRE_RANGE(imm8, 0, 15) {
+      SIMDE_REQUIRE_CONSTANT_RANGE(imm8, 0, 15)
+      SIMDE_REQUIRE_CONSTANT(sae) {
     simde__m512 r;
 
     if (sae & SIMDE_MM_FROUND_NO_EXC) {
@@ -207,7 +205,8 @@ SIMDE_BEGIN_DECLS_
   SIMDE_FUNCTION_ATTRIBUTES
   simde__m512d
   simde_mm512_roundscale_round_pd (simde__m512d a, int imm8, int sae)
-      SIMDE_REQUIRE_RANGE(imm8, 0, 15) {
+      SIMDE_REQUIRE_CONSTANT_RANGE(imm8, 0, 15)
+      SIMDE_REQUIRE_CONSTANT(sae) {
     simde__m512d r;
 
     if (sae & SIMDE_MM_FROUND_NO_EXC) {
@@ -262,7 +261,8 @@ SIMDE_BEGIN_DECLS_
   SIMDE_FUNCTION_ATTRIBUTES
   simde__m512d
   simde_mm512_mask_roundscale_round_pd (simde__m512d src, simde__mmask8 k, simde__m512d a, int imm8, int sae)
-      SIMDE_REQUIRE_RANGE(imm8, 0, 15) {
+      SIMDE_REQUIRE_CONSTANT_RANGE(imm8, 0, 15)
+      SIMDE_REQUIRE_CONSTANT(sae) {
     simde__m512d r;
 
     if (sae & SIMDE_MM_FROUND_NO_EXC) {
@@ -317,7 +317,8 @@ SIMDE_BEGIN_DECLS_
   SIMDE_FUNCTION_ATTRIBUTES
   simde__m512d
   simde_mm512_maskz_roundscale_round_pd (simde__mmask8 k, simde__m512d a, int imm8, int sae)
-      SIMDE_REQUIRE_RANGE(imm8, 0, 15) {
+      SIMDE_REQUIRE_CONSTANT_RANGE(imm8, 0, 15)
+      SIMDE_REQUIRE_CONSTANT(sae) {
     simde__m512d r;
 
     if (sae & SIMDE_MM_FROUND_NO_EXC) {
@@ -368,10 +369,10 @@ SIMDE_BEGIN_DECLS_
   #else
     #define simde_mm_roundscale_round_ss(a, b, imm8, sae) simde_mm_roundscale_ss(a, b, imm8)
   #endif
-#elif !(defined(HEDLEY_MSVC_VERSION) && defined(SIMDE_X86_AVX_NATIVE))
+#else
   SIMDE_FUNCTION_ATTRIBUTES
   simde__m128
-  simde_mm_roundscale_round_ss (simde__m128 a, simde__m128 b, const int imm8, const int sae)
+  simde_mm_roundscale_round_ss (simde__m128 a, simde__m128 b, int imm8, int sae)
       SIMDE_REQUIRE_CONSTANT_RANGE(imm8, 0, 255)
       SIMDE_REQUIRE_CONSTANT(sae) {
     simde__m128 r;
@@ -424,10 +425,10 @@ SIMDE_BEGIN_DECLS_
   #else
     #define simde_mm_mask_roundscale_round_ss(src, k, a, b, imm8, sae) simde_mm_mask_roundscale_ss(src, k, a, b, imm8)
   #endif
-#elif !(defined(HEDLEY_MSVC_VERSION) && defined(SIMDE_X86_AVX_NATIVE))
+#else
   SIMDE_FUNCTION_ATTRIBUTES
   simde__m128
-  simde_mm_mask_roundscale_round_ss (simde__m128 src, simde__mmask8 k, simde__m128 a, simde__m128 b, const int imm8, const int sae)
+  simde_mm_mask_roundscale_round_ss (simde__m128 src, simde__mmask8 k, simde__m128 a, simde__m128 b, int imm8, int sae)
       SIMDE_REQUIRE_CONSTANT_RANGE(imm8, 0, 255)
       SIMDE_REQUIRE_CONSTANT(sae) {
     simde__m128 r;
@@ -480,10 +481,10 @@ SIMDE_BEGIN_DECLS_
   #else
     #define simde_mm_maskz_roundscale_round_ss(k, a, b, imm8, sae) simde_mm_maskz_roundscale_ss(k, a, b, imm8)
   #endif
-#elif !(defined(HEDLEY_MSVC_VERSION) && defined(SIMDE_X86_AVX_NATIVE))
+#else
   SIMDE_FUNCTION_ATTRIBUTES
   simde__m128
-  simde_mm_maskz_roundscale_round_ss (simde__mmask8 k, simde__m128 a, simde__m128 b, const int imm8, const int sae)
+  simde_mm_maskz_roundscale_round_ss (simde__mmask8 k, simde__m128 a, simde__m128 b, int imm8, int sae)
       SIMDE_REQUIRE_CONSTANT_RANGE(imm8, 0, 255)
       SIMDE_REQUIRE_CONSTANT(sae) {
     simde__m128 r;
@@ -511,11 +512,6 @@ SIMDE_BEGIN_DECLS_
   #define _mm_maskz_roundscale_round_ss(k, a, b, imm8, sae) simde_mm_maskz_roundscale_round_ss(k, a, b, imm8, sae)
 #endif
 
-#if defined(HEDLEY_MSVC_VERSION)
-#pragma warning( pop )
-#endif
-
-
 #if defined(SIMDE_X86_AVX512F_NATIVE)
   #define simde_mm_roundscale_round_sd(a, b, imm8, sae) _mm_roundscale_round_sd(a, b, imm8, sae)
 #elif defined(SIMDE_FAST_EXCEPTIONS)
@@ -541,10 +537,10 @@ SIMDE_BEGIN_DECLS_
   #else
     #define simde_mm_roundscale_round_sd(a, b, imm8, sae) simde_mm_roundscale_sd(a, b, imm8)
   #endif
-#elif !(defined(HEDLEY_MSVC_VERSION) && defined(SIMDE_X86_AVX_NATIVE))
+#else
   SIMDE_FUNCTION_ATTRIBUTES
   simde__m128d
-  simde_mm_roundscale_round_sd (simde__m128d a, simde__m128d b, const int imm8, const int sae)
+  simde_mm_roundscale_round_sd (simde__m128d a, simde__m128d b, int imm8, int sae)
       SIMDE_REQUIRE_CONSTANT_RANGE(imm8, 0, 255)
       SIMDE_REQUIRE_CONSTANT(sae) {
     simde__m128d r;
@@ -597,10 +593,10 @@ SIMDE_BEGIN_DECLS_
   #else
     #define simde_mm_mask_roundscale_round_sd(src, k, a, b, imm8, sae) simde_mm_mask_roundscale_sd(src, k, a, b, imm8)
   #endif
-#elif !(defined(HEDLEY_MSVC_VERSION) && defined(SIMDE_X86_AVX_NATIVE))
+#else
   SIMDE_FUNCTION_ATTRIBUTES
   simde__m128d
-  simde_mm_mask_roundscale_round_sd (simde__m128d src, simde__mmask8 k, simde__m128d a, simde__m128d b, const int imm8, const int sae)
+  simde_mm_mask_roundscale_round_sd (simde__m128d src, simde__mmask8 k, simde__m128d a, simde__m128d b, int imm8, int sae)
       SIMDE_REQUIRE_CONSTANT_RANGE(imm8, 0, 255)
       SIMDE_REQUIRE_CONSTANT(sae) {
     simde__m128d r;
@@ -653,10 +649,10 @@ SIMDE_BEGIN_DECLS_
   #else
     #define simde_mm_maskz_roundscale_round_sd(k, a, b, imm8, sae) simde_mm_maskz_roundscale_sd(k, a, b, imm8)
   #endif
-#elif !(defined(HEDLEY_MSVC_VERSION) && defined(SIMDE_X86_AVX_NATIVE))
+#else
   SIMDE_FUNCTION_ATTRIBUTES
   simde__m128d
-  simde_mm_maskz_roundscale_round_sd (simde__mmask8 k, simde__m128d a, simde__m128d b, const int imm8, const int sae)
+  simde_mm_maskz_roundscale_round_sd (simde__mmask8 k, simde__m128d a, simde__m128d b, int imm8, int sae)
       SIMDE_REQUIRE_CONSTANT_RANGE(imm8, 0, 255)
       SIMDE_REQUIRE_CONSTANT(sae) {
     simde__m128d r;

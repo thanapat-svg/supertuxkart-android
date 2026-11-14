@@ -50,10 +50,7 @@ void WorldWithRank::init()
     m_position_used.resize(m_karts.size());
     m_position_setting_initialised = false;
 #endif
-    // 3SB now uses WorldWithRank too, so we have to account for spare tire karts
-    int sta = RaceManager::get()->getNumSpareTireKarts();
-    int kart_num = RaceManager::get()->getNumberOfKarts() - sta;
-    stk_config->getAllScores(&m_score_for_position, kart_num);
+    stk_config->getAllScores(&m_score_for_position, getNumKarts());
 
     Track *track = Track::getCurrentTrack();
     // Don't init track sector if navmesh is not found in arena
@@ -87,12 +84,6 @@ AbstractKart* WorldWithRank::getKartAtPosition(unsigned int p) const
 
     return m_karts[m_position_index[p-1]].get();
 }   // getKartAtPosition
-
-//-----------------------------------------------------------------------------
-std::pair<int, video::SColor> WorldWithRank::getSpeedometerDigit(const AbstractKart *kart) const
-{
-    return std::make_pair(kart->getPosition(), video::SColor(255, 255, 255, 255));
-}    // getSpeedometerDigit
 
 //-----------------------------------------------------------------------------
 /** This function must be called before starting to set all kart positions
@@ -169,7 +160,7 @@ void WorldWithRank::endSetKartPositions()
 /** Determines the rescue position for a kart. The rescue position is the
  *  start position which is has the biggest accumulated distance to all other
  *  karts, and which has no other kart very close. The latter avoids dropping
- *  a kart on top of another kart. This is the method used
+ *  a kart on top of another kart. This is the method used 
  *  \param kart The kart that is going to be rescued.
  *  \returns The index of the start position to which the rescued kart
  *           should be moved to.

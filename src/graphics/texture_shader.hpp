@@ -37,12 +37,10 @@ enum SamplerTypeNew
     ST_TRILINEAR_ANISOTROPIC_FILTERED,
     ST_TRILINEAR_CUBEMAP,
     ST_BILINEAR_FILTERED,
-    ST_NEAREST_FILTERED_ARRAY2D,
     ST_SHADOW_SAMPLER,
-    ST_SHADOW_SAMPLER_ARRAY2D,
     ST_TRILINEAR_CLAMPED_ARRAY2D,
     ST_VOLUME_LINEAR_FILTERED,
-    ST_NEAREST_CLAMPED_FILTERED,
+    ST_NEARED_CLAMPED_FILTERED,
     ST_BILINEAR_CLAMPED_FILTERED,
     ST_SEMI_TRILINEAR,
 #ifdef USE_GLES2
@@ -72,9 +70,7 @@ protected:
     static void   bindTextureTrilinearAnisotropic(GLuint tex_unit, GLuint tex_id);
     static void   bindTextureSemiTrilinear(GLuint tex_unit, GLuint tex_id);
     static void   bindCubemapTrilinear(GLuint tex_unit, GLuint tex_id);
-    static void   bindTextureNearestArray(GLuint tex_unit, GLuint tex_id);
     static void   bindTextureShadow(GLuint tex_unit, GLuint tex_id);
-    static void   bindTextureShadowArray(GLuint tex_unit, GLuint tex_id);
     static void   bindTrilinearClampedArrayTexture(GLuint tex_unit, GLuint tex_id);
     static void   bindTextureVolume(GLuint tex_unit, GLuint tex_id);
     static void   bindTextureBuffer(GLuint tex_unit, GLuint tex_id);
@@ -82,11 +78,12 @@ protected:
     GLuint        createSamplers(SamplerTypeNew sampler_type);
 private:
 
-    static GLuint createNearestSampler(bool clamp);
+    static GLuint createNearestSampler();
     static GLuint createTrilinearSampler();
-    static GLuint createBilinearSampler(bool clamp);
+    static GLuint createBilinearSampler();
     static GLuint createShadowSampler();
     static GLuint createTrilinearClampedArray();
+    static GLuint createBilinearClampedSampler();
     static GLuint createSemiTrilinearSampler();
 protected:
     static BindFunction m_all_bind_functions[];

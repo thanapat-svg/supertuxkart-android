@@ -30,6 +30,7 @@
 #include "utils/mem_utils.hpp"
 #include "utils/string_utils.hpp"
 
+#include <irrlicht.h>
 #include <stdio.h>
 #include <string>
 #include <cinttypes>
@@ -45,7 +46,6 @@ ReplayPlay::ReplayPlay()
     m_current_replay_file   = 0;
     m_second_replay_file    = 0;
     m_second_replay_enabled = false;
-    m_loaded_all_replays    = false;
 }   // ReplayPlay
 
 //-----------------------------------------------------------------------------
@@ -102,7 +102,6 @@ void ReplayPlay::loadAllReplayFile()
         j++;
     }
 
-    m_loaded_all_replays = true;
 }   // loadAllReplayFile
 
 //-----------------------------------------------------------------------------
@@ -115,7 +114,7 @@ bool ReplayPlay::addReplayFile(const std::string& fn, bool custom_replay, int ca
         file_manager->getReplayDir() + fn, "r");
     if (fd == NULL) return false;
     auto scoped = [&]() { fclose(fd); };
-    MemUtils::deref<decltype(scoped)> cls(scoped);
+    MemUtils::deref<decltype(scoped)> cls(scoped); 
     ReplayData rd;
 
     // custom_replay is true when full path of filename is given
@@ -130,20 +129,16 @@ bool ReplayPlay::addReplayFile(const std::string& fn, bool custom_replay, int ca
                   "found in replay file (bogus replay file).");
         return false;
     }
-    if ( version < getMinSupportedReplayVersion() )
+    if (version > getCurrentReplayVersion() ||
+        version < getMinSupportedReplayVersion() )
     {
-        Log::warn("Replay", "Replay is version '%d', Minimum supported replay version is '%d', skipped '%s'",
-                  version, getMinSupportedReplayVersion(), fn.c_str());
+        Log::warn("Replay", "Replay is version '%d'", version);
+        Log::warn("Replay", "STK replay version is '%d'", getCurrentReplayVersion());
+        Log::warn("Replay", "Minimum supported replay version is '%d'", getMinSupportedReplayVersion());
+        Log::warn("Replay", "Skipped '%s'", fn.c_str());
         return false;
     }
-    else if (version > getCurrentReplayVersion())
-    {
-        Log::warn("Replay", "Replay is version '%d', STK replay version is '%d', skipped '%s'",
-                  version, getCurrentReplayVersion(), fn.c_str());
-        return false;
-    }
-
-    rd.m_replay_version = version;
+        rd.m_replay_version = version;
 
     if (version >= 4)
     {
@@ -207,12 +202,6 @@ bool ReplayPlay::addReplayFile(const std::string& fn, bool custom_replay, int ca
             rd.m_kart_color.push_back(0.0f); // Use default kart color
     }
 
-    if (rd.m_kart_list.size() == 0)
-    {
-        Log::warn("Replay", "No kart specified in replay file, '%s'.", fn.c_str());
-        return false;
-    }
-
     int reverse = 0;
     fgets(s, 1023, fd);
     if(sscanf(s, "reverse: %d", &reverse) != 1)
@@ -243,37 +232,14 @@ bool ReplayPlay::addReplayFile(const std::string& fn, bool custom_replay, int ca
     else
         rd.m_minor_mode = "time-trial";
 
-    // sscanf always stops at whitespaces, but a track name may contain a whitespace
-    // Official tracks should avoid whitespaces in their name, but it
-    // unavoidably occurs with some addons or WIP tracks.
-    fgets(s, 1023, fd);
-    if (std::strncmp(s, "track: ", 7) == 0)
-    {
-        int i = 0;
-        for(i = 7; s[i] != '\0'; i++)
-        {
-            // Break when newline is reached
-            if (s[i] == '\n' || s[i] == '\r')
-                break;
-            s1[i-7] = s[i];
-        }
-        s1[i-7] = '\0';
 
-        if (i >= 8)
-        {
-            rd.m_track_name = std::string(s1);
-        }
-        else
-        {
-            Log::warn("Replay", "Track name is empty in replay file, '%s'.", fn.c_str());
-            return false;
-        }
-    }
-    else
+    fgets(s, 1023, fd);
+    if (sscanf(s, "track: %1023s", s1) != 1)
     {
         Log::warn("Replay", "Track info not found in replay file, '%s'.", fn.c_str());
         return false;
     }
+    rd.m_track_name = std::string(s1);
 
     // If former official tracks are present as addons, show the matching replays.
     if (rd.m_track_name.compare("greenvalley") == 0)
@@ -291,17 +257,7 @@ bool ReplayPlay::addReplayFile(const std::string& fn, bool custom_replay, int ca
 
     rd.m_track = t;
 
-    rd.m_info = "";
     fgets(s, 1023, fd);
-    if (sscanf(s, "info: %1023s", s1) == 1)
-    {
-        int last = strlen(s);
-        if (s[last - 1] == '\n')
-            s[last - 1] = '\0';
-         
-        rd.m_info = s + 6;
-        fgets(s, 1023, fd);
-    }
     if (sscanf(s, "laps: %u", &rd.m_laps) != 1)
     {
         Log::warn("Replay", "No number of laps found in replay file, '%s'.", fn.c_str());
@@ -379,27 +335,16 @@ void ReplayPlay::loadFile(bool second_replay)
                                                             .m_kart_list.size();
     unsigned int lines_to_skip = (rd.m_replay_version == 3) ? 7 : 10;
     lines_to_skip += (rd.m_replay_version == 3) ? num_kart : 2*num_kart;
-    lines_to_skip += (rd.m_info != "") ? 1 : 0;
 
     for (unsigned int i = 0; i < lines_to_skip; i++)
         fgets(s, 1023, fd);
 
     // eof actually doesn't trigger here, since it requires first to try
     // reading behind eof, but still it's clearer this way.
-    unsigned int kart_counter = 0;
     while(!feof(fd))
     {
-        kart_counter++;
         if(fgets(s, 1023, fd)==NULL)  // eof reached
             break;
-        // This may happen e.g. if extra lines are added at the end of the replay file
-        // Going ahead with trying to read another kart data would cause an OOB error
-        if (kart_counter > num_kart)
-        {
-            Log::warn("Replay", "Replay file '%s' doesn't terminate properly..",
-                getReplayFilename(replay_file_number).c_str());
-            break;
-        }
         readKartData(fd, s, second_replay);
     }
 
@@ -496,7 +441,7 @@ void ReplayPlay::readKartData(FILE *fd, char *next_line, bool second_replay)
             }
         }
 
-        //version 4 replays (STK 1.0 and higher)
+        //version 4 replays (STK 0.9.4 and higher)
         else
         {
             if(sscanf(s, "%f  %f %f %f  %f %f %f %f  %f  %f  %f %f %f %f %d  %d %f %d %d %d  %f %d %d %d %d %d\n",
@@ -572,6 +517,6 @@ unsigned int ReplayPlay::getReplayIdByUID(uint64_t uid)
         }
     }
 
-    Log::error("Replay", "Replay with UID of %" PRIu64 " not found.", uid);
+    Log::error("Replay", "Replay with UID of " PRIu64 " not found.", uid);
     return 0;
-} //getReplayIdByUID
+} //setReplayFileByUID

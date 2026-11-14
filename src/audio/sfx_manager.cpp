@@ -22,7 +22,6 @@
 #include "audio/sfx_buffer.hpp"
 #include "config/user_config.hpp"
 #include "io/file_manager.hpp"
-#include "modes/world.hpp"
 #include "race/race_manager.hpp"
 #include "states_screens/state_manager.hpp"
 #include "utils/stk_process.hpp"
@@ -158,8 +157,8 @@ SFXManager::~SFXManager()
 }   // ~SFXManager
 
 //----------------------------------------------------------------------------
-/** Adds a sound effect command to the queue of the sfx manager. Openal
- *  commands can sometimes cause a 5ms delay, so it is done in a separate
+/** Adds a sound effect command to the queue of the sfx manager. Openal 
+ *  commands can sometimes cause a 5ms delay, so it is done in a separate 
  *  thread.
  *  \param command The command to execute.
  *  \param sfx The sound effect to be started.
@@ -296,7 +295,7 @@ void SFXManager::queueCommand(SFXCommand *command)
         RaceManager::get()->getMinorMode() != RaceManager::MINOR_MODE_CUTSCENE)
     {
         if(command->m_command==SFX_POSITION || command->m_command==SFX_LOOP ||
-           command->m_command==SFX_SPEED    ||
+           command->m_command==SFX_SPEED    || 
            command->m_command==SFX_SPEED_POSITION                               )
         {
             delete command;
@@ -337,7 +336,7 @@ void SFXManager::stopThread()
 }   // stopThread
 
 //----------------------------------------------------------------------------
-/** This loops runs in a different thread, and starts playing sfx.
+/** This loops runs in a different threads, and starts sfx to be played.
  *  This can sometimes take up to 5 ms, so it needs to be handled in a thread
  *  in order to avoid rendering delays.
  *  \param obj A pointer to the SFX singleton.
@@ -438,7 +437,7 @@ void SFXManager::mainLoop(void *obj)
             current->m_music_information->pauseMusic();           break;
         case SFX_MUSIC_RESUME:
             current->m_music_information->resumeMusic();
-            // This might be necessary if the volume was changed
+            // This might be necessasary if the volume was changed
             // in the in-game menu
             current->m_music_information->setDefaultVolume();     break;
         case SFX_MUSIC_SWITCH_FAST:
@@ -496,7 +495,7 @@ void SFXManager::mainLoop(void *obj)
 
 //----------------------------------------------------------------------------
 /** Called when sound is globally switched on or off. It either pauses or
- *  resumes all sound effects.
+ *  resumes all sound effects. 
  *  \param on If sound is switched on or off.
  */
 void SFXManager::toggleSound(const bool on)
@@ -514,18 +513,25 @@ void SFXManager::toggleSound(const bool on)
         reallyResumeAllNow();
         m_all_sfx.lock();
         const int sfx_amount = (int)m_all_sfx.getData().size();
-        bool resume_later = false;
-        if (World::getWorld() != NULL)
-            resume_later = (World::getWorld()->getPhase() == World::IN_GAME_MENU_PHASE);
         for (int n=0; n<sfx_amount; n++)
         {
-            // This also pauses sound effects if they should be resumed later
-            m_all_sfx.getData()[n]->onSoundEnabledBack(resume_later);
+            m_all_sfx.getData()[n]->onSoundEnabledBack();
         }
         m_all_sfx.unlock();
     }
     else
     {
+        // First stop all sfx that are not looped
+        const int sfx_amount = (int)m_all_sfx.getData().size();
+        m_all_sfx.lock();
+        for (int i=0; i<sfx_amount; i++)
+        {
+            if(!m_all_sfx.getData()[i]->isLooped())
+            {
+                m_all_sfx.getData()[i]->reallyStopNow();
+            }
+        }
+        m_all_sfx.unlock();
         pauseAll();
     }
 }   // toggleSound
@@ -617,7 +623,7 @@ SFXBuffer* SFXManager::addSingleSfx(const std::string &sfx_name,
                                     const bool         load)
 {
 
-    SFXBuffer* buffer = new SFXBuffer(sfx_file, positional, rolloff,
+    SFXBuffer* buffer = new SFXBuffer(sfx_file, positional, rolloff, 
                                       max_dist, gain);
 
     m_all_sfx_types[sfx_name] = buffer;
@@ -720,7 +726,7 @@ SFXBase* SFXManager::createSoundSource(SFXBuffer* buffer,
 
     sfx->setMasterVolume(m_master_gain);
 
-    if (add_to_SFX_list)
+    if (add_to_SFX_list) 
     {
         m_all_sfx.lock();
         m_all_sfx.getData().push_back(sfx);
@@ -737,7 +743,7 @@ SFXBase* SFXManager::createSoundSource(const std::string &name,
     std::map<std::string, SFXBuffer*>::iterator i = m_all_sfx_types.find(name);
     if ( i == m_all_sfx_types.end() )
     {
-        Log::error("SFXManager",
+        Log::error("SFXManager", 
                    "SFXManager::createSoundSource could not find the "
                    "requested sound effect : '%s'.", name.c_str());
         return NULL;
@@ -878,7 +884,7 @@ void SFXManager::deleteSFX(SFXBase *sfx)
 
     if(i==m_all_sfx.getData().end())
     {
-        Log::warn("SFXManager",
+        Log::warn("SFXManager", 
                   "SFXManager::deleteSFX : Warning: sfx '%s' %lx not found in list.",
                   sfx->getBuffer()->getFileName().c_str(), sfx);
         m_all_sfx.unlock();
@@ -892,29 +898,20 @@ void SFXManager::deleteSFX(SFXBase *sfx)
 }   // deleteSFX
 
 //----------------------------------------------------------------------------
-/** Request the pausing of all SFXs. Non-looping SFXs are finished,
- * since it's otherwise not possible to determine which SFXs must be resumed
- * (i.e. were actually playing at the time pause was called).
+/** Pauses all looping SFXs. Non-looping SFX will be finished, since it's
+ *  otherwise not possible to determine which SFX must be resumed (i.e. were
+ *  actually playing at the time pause was called).
  */
 void SFXManager::pauseAll()
 {
-    // First stop all sfx that are not looped
-    const int sfx_amount = (int)m_all_sfx.getData().size();
-    m_all_sfx.lock();
-    for (int i=0; i<sfx_amount; i++)
-    {
-        if(!m_all_sfx.getData()[i]->isLooped())
-        {
-            m_all_sfx.getData()[i]->reallyStopNow();
-        }
-    }
-    m_all_sfx.unlock();
-
+    if (!sfxAllowed()) return;
     queue(SFX_PAUSE_ALL);
 }   // pauseAll
 
 //----------------------------------------------------------------------------
-/** Actually pauses the SFXs.
+/** Pauses all looping SFXs. Non-looping SFX will be finished, since it's
+ *  otherwise not possible to determine which SFX must be resumed (i.e. were
+ *  actually playing at the time pause was called.
  */
 void SFXManager::reallyPauseAllNow()
 {
@@ -925,7 +922,7 @@ void SFXManager::reallyPauseAllNow()
         (*i)->reallyPauseNow();
     }   // for i in m_all_sfx
     m_all_sfx.unlock();
-}   // reallyPauseAllNow
+}   // pauseAll
 
 //----------------------------------------------------------------------------
 /** Resumes all paused SFXs. If sound is disabled, does nothing.
@@ -953,7 +950,7 @@ void SFXManager::reallyResumeAllNow()
         (*i)->reallyResumeNow();
     }   // for i in m_all_sfx
     m_all_sfx.unlock();
-}   // reallyResumeAllNow
+}   // resumeAll
 
 //-----------------------------------------------------------------------------
 /** Returns whether or not an openal error has occurred. If so, an error
@@ -1100,7 +1097,7 @@ SFXBase* SFXManager::quickSound(const std::string &sound_type)
     if (!sfxAllowed()) return NULL;
 
     std::unique_lock<std::mutex> ul = m_quick_sounds.acquireMutex();
-    std::map<std::string, SFXBase*>::iterator sound =
+    std::map<std::string, SFXBase*>::iterator sound = 
                                      m_quick_sounds.getData().find(sound_type);
 
     if (sound == m_quick_sounds.getData().end())

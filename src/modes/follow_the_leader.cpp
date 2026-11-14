@@ -20,7 +20,7 @@
 #include "audio/music_manager.hpp"
 #include "challenges/unlock_manager.hpp"
 #include "config/user_config.hpp"
-#include "graphics/camera/camera.hpp"
+#include "graphics/camera.hpp"
 #include "items/powerup_manager.hpp"
 #include "karts/abstract_kart.hpp"
 #include "karts/controller/controller.hpp"
@@ -47,7 +47,6 @@ FollowTheLeaderRace::FollowTheLeaderRace() : LinearWorld()
     m_use_highscores   = false;  // disable high scores
     setClockMode(WorldStatus::CLOCK_COUNTDOWN, m_leader_intervals[0]);
     m_is_over_delay = 5.0f;
-    m_leader_hit_count = 0;
 }
 
 //-----------------------------------------------------------------------------
@@ -90,7 +89,6 @@ void FollowTheLeaderRace::reset(bool restart)
                               m_leader_intervals[0]);
     
     m_is_over_delay = 2.0f;
-    m_leader_hit_count = 0;
 }   // reset
 
 //-----------------------------------------------------------------------------
@@ -124,8 +122,7 @@ const btTransform &FollowTheLeaderRace::getStartTransform(int index)
  */
 void FollowTheLeaderRace::countdownReachedZero()
 {
-    m_last_eliminated_time += m_leader_intervals[0] + m_leader_hit_count * LEADER_HIT_TIME;
-    m_leader_hit_count = 0; // Reset the hit counter
+    m_last_eliminated_time += m_leader_intervals[0];
     if(m_leader_intervals.size()>1)
         m_leader_intervals.erase(m_leader_intervals.begin());
     WorldStatus::setTime(m_leader_intervals[0]);
@@ -149,7 +146,7 @@ void FollowTheLeaderRace::countdownReachedZero()
     {
         if(UserConfigParams::m_ftl_debug)
         {
-            Log::debug("[FTL", "Eliminating kart '%s' at position %d.",
+            Log::debug("[FTL", "Eliminiating kart '%s' at position %d.",
                 kart->getIdent().c_str(), position_to_remove);
         }
         eliminateKart(kart->getWorldKartId());
@@ -230,9 +227,8 @@ bool FollowTheLeaderRace::isRaceOver()
 void FollowTheLeaderRace::leaderHit()
 {
     int countdown = getTimeTicks();
-    countdown += stk_config->time2Ticks(LEADER_HIT_TIME);
+    countdown += stk_config->time2Ticks(5.0f);
     setTicks(countdown);
-    m_leader_hit_count++;
 } // leaderHit
 
 //-----------------------------------------------------------------------------

@@ -71,6 +71,9 @@ namespace GUIEngine
             if (singleton == NULL)
             {
                 singleton = new SCREEN();
+                std::function<SCREEN*()> new_screen_function = []()
+                    { return ScreenSingleton::getInstance(); };
+                singleton->setScreenPointerFunction(new_screen_function);
                 GUIEngine::addScreenToList(singleton);
             }
 
@@ -92,6 +95,10 @@ namespace GUIEngine
      */
     class Screen : public AbstractTopLevelContainer
     {
+protected:
+        /** True if this screen is resizable
+         */
+        bool m_resizable;
     private:
         /** True if the race (if it is running) should be paused when this
          *  screen is shown. The RaceResultGUI uses this to leave the race
@@ -105,7 +112,7 @@ namespace GUIEngine
          */
         bool m_render_3d;
 
-        /** When set to true it updates the screen even if modal dialog is
+        /** When set to true it updates the screen even if modal dialog is 
          *  opened
          */
         bool m_update_in_background;
@@ -136,6 +143,13 @@ namespace GUIEngine
                                        PtrVector<Widget>& append_to,
                                        irr::gui::IGUIElement* parent = NULL);
 
+        /** Save the function before GUIEngine::clearScreenCache, call it after
+         * to get the new screen instance pointer
+         */
+        std::function<Screen*()> getNewScreenPointer() const { return m_screen_func; }
+
+        void setScreenPointerFunction(const std::function<Screen*()>& f) { m_screen_func = f; }
+
         Screen(bool pause_race=true);
 
         Screen(const char* filename, bool pause_race=true);
@@ -157,7 +171,7 @@ namespace GUIEngine
 
         void manualRemoveWidget(Widget* w);
         
-        /** When set to true it updates the screen even if modal dialog is
+        /** When set to true it updates the screen even if modal dialog is 
          *  opened
          */
         void setUpdateInBackground(bool value) {m_update_in_background = value;}
@@ -232,7 +246,7 @@ namespace GUIEngine
           */
         virtual void init();
 
-        /** Displays this screen bu pushing it onto the stack of screen
+        /** Displays this screen bu pushing it onto the stack of screen 
          *  in the state manager. */
         void push();
 
@@ -276,11 +290,6 @@ namespace GUIEngine
         virtual void onDraw(float dt) { };
 
         /**
-         * \brief optional callback you can override to be notified at every resize.
-         */
-        virtual void onResize();
-
-        /**
          * \return which music to play at this screen
          */
         virtual MusicInformation* getMusic() const { return stk_config->m_title_music; }
@@ -294,6 +303,7 @@ namespace GUIEngine
 
         virtual int getHeight() { return m_height; }
 
+        virtual bool isResizable() const { return m_resizable; }
         /**
          * \brief Override this if you need to be notified of player actions
          *        in subclasses.
@@ -316,13 +326,10 @@ namespace GUIEngine
          *        subclasses.
          */
         virtual void filterInput(Input::InputType type,
-                                 int deviceID, int btnID,
-                                 int axisDir, int value) {}
-
-        /**
-         * \brief Override this to handle page up/down in a subclass outside of lists
-         */
-        virtual void handlePaging(bool page_up) {}
+                                 int deviceID,
+                                 int btnID,
+                                 int axisDir,
+                                 int value) {}
 
         /** Callback that gets called when a dialog is closed.
          *  Can be used to set focus for instance.

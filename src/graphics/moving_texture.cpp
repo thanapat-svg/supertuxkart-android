@@ -71,22 +71,20 @@ MovingTexture::MovingTexture(core::matrix4 *matrix, float dx, float dy)
     m_x = v.X;
     m_y = v.Y;
     m_count = 0.0f;
-    m_dt = 0.0f;
     m_sp_tm = NULL;
 }   // MovingTexture
 
 //-----------------------------------------------------------------------------
-MovingTexture::MovingTexture(float dx, float dy, float dt,
-                             bool animated_by_step)
+MovingTexture::MovingTexture(float dx, float dy)
 {
-    m_isAnimatedByStep = animated_by_step;
+    // by default the animation by step is disabled
+    m_isAnimatedByStep = false;
 
     m_dx     = dx;
     m_dy     = dy;
     m_x      = 0;
     m_y      = 0;
-    m_count  = 0.0f;
-    m_dt     = dt;
+    m_count = 0.0f;
     m_matrix = NULL;
     m_sp_tm = NULL;
 }   // MovingTexture
@@ -162,3 +160,5 @@ void MovingTexture::update(float dt)
         }
     }
 }   // update
+
+

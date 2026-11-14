@@ -947,9 +947,8 @@ const SLight& CNullDriver::getDynamicLight(u32 idx) const
 {
 	if ( idx < Lights.size() )
 		return Lights[idx];
-        static const SLight defaultLight;
-        os::Printer::log("Error: CNullDriver::getDynamicLight was invoked with an invalid index.", ELL_ERROR);
-        return defaultLight;
+	else
+		return *((SLight*)0);
 }
 
 
@@ -1361,7 +1360,7 @@ video::IImageLoader* CNullDriver::getImageLoaderForFile(const io::path& filename
 
 
 //! Writes the provided image to disk file
-bool CNullDriver::writeImageToFile(IImage* image, const io::path& filename, u32 param)
+bool CNullDriver::writeImageToFile(IImage* image, const io::path& filename,u32 param)
 {
 	io::IWriteFile* file = FileSystem->createAndWriteFile(filename);
 	if(!file)
@@ -1374,7 +1373,7 @@ bool CNullDriver::writeImageToFile(IImage* image, const io::path& filename, u32 
 }
 
 //! Writes the provided image to a file.
-bool CNullDriver::writeImageToFile(IImage* image, io::IWriteFile* file, u32 param)
+bool CNullDriver::writeImageToFile(IImage* image, io::IWriteFile * file, u32 param)
 {
 	if(!file)
 		return false;
@@ -1395,7 +1394,7 @@ bool CNullDriver::writeImageToFile(IImage* image, io::IWriteFile* file, u32 para
 //! Creates a software image from a byte array.
 IImage* CNullDriver::createImageFromData(ECOLOR_FORMAT format,
 					const core::dimension2d<u32>& size,
-					void* data, bool ownForeignMemory,
+					void *data, bool ownForeignMemory,
 					bool deleteMemory)
 {
 	if(IImage::isRenderTargetOnlyFormat(format))
@@ -1422,7 +1421,7 @@ IImage* CNullDriver::createImage(ECOLOR_FORMAT format, const core::dimension2d<u
 
 
 //! Creates a software image from another image.
-IImage* CNullDriver::createImage(ECOLOR_FORMAT format, IImage* imageToCopy)
+IImage* CNullDriver::createImage(ECOLOR_FORMAT format, IImage *imageToCopy)
 {
 	os::Printer::log("Deprecated method, please create an empty image instead and use copyTo().", ELL_WARNING);
 	if(IImage::isRenderTargetOnlyFormat(format))

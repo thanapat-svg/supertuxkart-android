@@ -112,6 +112,11 @@ namespace GUIEngine
         void resetAndSetStack(Screen* screens[]);
 
         /**
+         * \brief Called when resizing of stk window
+         */
+        void onResize();
+
+        /**
          * \brief Used in no graphics STK to enter menu screen (when server is
          * idle state)
          */
@@ -177,7 +182,7 @@ namespace GUIEngine
         /** Returns the number of screens on the stack. Is used to decide
          *  if exiting a screen would cause STK to end or not. */
         unsigned int getMenuStackSize() const
-        {
+        { 
             return (unsigned int)m_menu_stack.size();
         }
     };   // Class AbstractStateManager

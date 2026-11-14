@@ -23,7 +23,7 @@
 #include "audio/music_manager.hpp"
 #include "config/user_config.hpp"
 #include "graphics/2dutils.hpp"
-#include "graphics/camera/camera.hpp"
+#include "graphics/camera.hpp"
 #include "graphics/central_settings.hpp"
 #include "graphics/irr_driver.hpp"
 #include "graphics/material.hpp"
@@ -53,7 +53,6 @@
 #include "utils/translation.hpp"
 
 #include <GlyphLayout.h>
-#include <IrrlichtDevice.h>
 #include <ICameraSceneNode.h>
 
 namespace irr
@@ -407,7 +406,7 @@ void RaceGUIBase::drawPowerupIcons(const AbstractKart* kart,
     int x1, y1;
 
     // When there is not much height or set by user, move items on the side
-    if ((UserConfigParams::m_powerup_display == 1) ||
+    if ((UserConfigParams::m_powerup_display == 1) || 
         ((float) viewport.getWidth() / (float) viewport.getHeight() > 2.0f))
     {
         x1 = viewport.UpperLeftCorner.X  + 3*(viewport.getWidth()/4)
@@ -807,8 +806,10 @@ void RaceGUIBase::drawGlobalPlayerIcons(int bottom_margin)
     unsigned int sta = RaceManager::get()->getNumSpareTireKarts();
     unsigned int total_karts = RaceManager::get()->getNumberOfKarts() - sta;
     unsigned int num_karts = 0;
-    num_karts = World::getWorld()->getCurrentNumKarts();
-
+    if (NetworkConfig::get()->isNetworking())
+        num_karts = World::getWorld()->getCurrentNumKarts();
+    else
+        num_karts = RaceManager::get()->getNumberOfKarts() - sta;
     // May happen in spectate mode if all players disconnected before server
     // reset
     if (num_karts == 0)
@@ -861,7 +862,7 @@ void RaceGUIBase::drawGlobalPlayerIcons(int bottom_margin)
     const unsigned int kart_amount = world->getNumKarts() - sta;
 
     //where is the limit to hide last icons
-    int y_icons_limit = irr_driver->getActualScreenSize().Height -
+    int y_icons_limit = irr_driver->getActualScreenSize().Height - 
                                             bottom_margin - ICON_PLAYER_WIDTH;
     if (RaceManager::get()->getIfEmptyScreenSpaceExists())
     {
@@ -1032,21 +1033,35 @@ void RaceGUIBase::drawPlayerIcon(AbstractKart *kart, int x, int y, int w,
                                  bool is_local)
 {
 #ifndef SERVER_ONLY
-    video::ITexture *icon = kart->getKartProperties()->getIconMaterial()->getTexture();
+    video::ITexture *icon =
+    kart->getKartProperties()->getIconMaterial()->getTexture();
 
     CaptureTheFlag* ctf = dynamic_cast<CaptureTheFlag*>(World::getWorld());
     unsigned int kart_id = kart->getWorldKartId();
 
     // CTF
-    if (ctf && (ctf->getRedHolder()  == (int)kart_id ||
-                ctf->getBlueHolder() == (int)kart_id))
+    if (ctf)
     {
-        video::ITexture* flag = irr_driver->getTexture(FileManager::GUI_ICON,
-            (ctf->getRedHolder() == (int)kart_id) ? "red_flag.png" : "blue_flag.png");
-
-        const core::rect<s32> rect(core::position2d<s32>(0, 0), flag->getSize());
-        const core::rect<s32> pos1(x - 20, y - 10, x + w - 20, y + w - 30);
-        draw2DImage(flag, pos1, rect, NULL, NULL, true);
+        if (ctf->getRedHolder() == (int)kart_id)
+        {
+            video::ITexture* red =
+                irr_driver->getTexture(FileManager::GUI_ICON, "red_flag.png");
+            const core::rect<s32> rect(core::position2d<s32>(0, 0),
+                red->getSize());
+            const core::rect<s32> pos1
+                (x - 20, y - 10, x + w - 20, y + w - 30);
+            draw2DImage(red, pos1, rect, NULL, NULL, true);
+        }
+        else if (ctf->getBlueHolder() == (int)kart_id)
+        {
+            video::ITexture* blue =
+                irr_driver->getTexture(FileManager::GUI_ICON, "blue_flag.png");
+            const core::rect<s32> rect(core::position2d<s32>(0, 0),
+                blue->getSize());
+            const core::rect<s32> pos1
+                (x - 20, y - 10, x + w - 20, y + w - 30);
+            draw2DImage(blue, pos1, rect, NULL, NULL, true);
+        }
     }
 
     const core::rect<s32> pos(x, y, x+w, y+w);
@@ -1113,12 +1128,7 @@ void RaceGUIBase::drawPlayerIcon(AbstractKart *kart, int x, int y, int w,
     {
         const core::rect<s32> rect(core::position2d<s32>(0,0),
                                    icon->getSize());
-        video::SColor translucence((unsigned)-1);
-        translucence.setAlpha(128);
-        if (kart->isGhostKart())
-            draw2DImage(icon, pos, rect, NULL, translucence, true);
-        else
-            draw2DImage(icon, pos, rect, NULL, NULL, true);
+        draw2DImage(icon, pos, rect, NULL, NULL, true, kart->isGhostKart());
     }
 
     //draw status info - icon fade out in case of rescue/explode

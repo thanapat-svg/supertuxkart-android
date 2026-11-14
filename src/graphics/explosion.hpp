@@ -32,10 +32,7 @@ using namespace irr;
 
 class Vec3;
 class SFXBase;
-
-#ifndef SERVER_ONLY
 class ParticleEmitter;
-#endif
 
 /**
   * \ingroup graphics
@@ -45,11 +42,7 @@ class Explosion : public HitSFX
 private:
     int              m_remaining_ticks;
     int              m_emission_frames;
-
-#ifndef SERVER_ONLY
     ParticleEmitter* m_emitter;
-#endif
-
     int              m_explosion_ticks;
 
 
@@ -57,9 +50,9 @@ public:
          Explosion(const Vec3& coord, const char* explosion_sound, const char * particle_file );
         ~Explosion();
     bool updateAndDelete(int ticks) OVERRIDE;
-    bool hasEnded ()
+    bool hasEnded () 
     {
-        return  m_remaining_ticks <= -m_explosion_ticks;
+        return  m_remaining_ticks <= -m_explosion_ticks; 
     }
 
 } ;

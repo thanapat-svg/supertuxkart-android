@@ -22,6 +22,7 @@
 #include "LinearMath/btTransform.h"
 
 #include "items/item.hpp"
+#include "utils/aligned_array.hpp"
 #include "utils/no_copy.hpp"
 #include "utils/vec3.hpp"
 
@@ -56,7 +57,7 @@ private:
 
     static uint32_t m_random_seed;
 
-    static bool preloadIcon(const std::string& name);
+    static void preloadIcon(const std::string& name);
 public:
     static void loadDefaultItemMeshes();
     static void removeTextures();
@@ -147,7 +148,7 @@ public:
     void           reset           ();
     virtual void   collectedItem   (ItemState *item, AbstractKart *kart);
     virtual void   switchItems     ();
-    bool           randomItemsForArena(const std::vector<btTransform>& pos);
+    bool           randomItemsForArena(const AlignedArray<btTransform>& pos);
 
     // ------------------------------------------------------------------------
     /** Returns true if the items are switched atm. */
@@ -168,7 +169,7 @@ public:
     // ------------------------------------------------------------------------
     /** Returns a pointer to the n-th item. */
     const ItemState* getItem(unsigned int n) const
-    {
+    { 
         return dynamic_cast<Item*>(m_all_items[n]);
     };
     // ------------------------------------------------------------------------
@@ -202,7 +203,7 @@ public:
         assert(m_items_in_quads);
         assert(n < m_items_in_quads->size());
         return ((*m_items_in_quads)[n]).empty()
-              ? NULL
+              ? NULL 
              : dynamic_cast<Item*>((*m_items_in_quads)[n].front());
     }   // getFirstItemInQuad
     // ------------------------------------------------------------------------

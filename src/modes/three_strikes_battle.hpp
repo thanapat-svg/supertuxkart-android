@@ -24,6 +24,8 @@
 #include "tracks/track_object.hpp"
 #include "states_screens/race_gui_base.hpp"
 
+#include <IMesh.h>
+
 #include <string>
 
 class PhysicalObject;
@@ -120,11 +122,6 @@ public:
                  std::vector<RaceGUIBase::KartIconDisplayInfo> *info) OVERRIDE;
     // ------------------------------------------------------------------------
     virtual bool raceHasLaps() OVERRIDE                       { return false; }
-    // ------------------------------------------------------------------------
-    virtual bool shouldDrawSpeedometerDigit() const OVERRIDE   { return true; }
-    // ------------------------------------------------------------------------
-    virtual std::pair<int, video::SColor>
-                getSpeedometerDigit(const AbstractKart *kart) const OVERRIDE;
     // ------------------------------------------------------------------------
     virtual const std::string& getIdent() const OVERRIDE;
     // ------------------------------------------------------------------------

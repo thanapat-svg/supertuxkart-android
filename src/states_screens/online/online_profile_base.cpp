@@ -22,11 +22,7 @@
 #include "guiengine/scalable_font.hpp"
 #include "guiengine/screen.hpp"
 #include "guiengine/widget.hpp"
-#include "guiengine/widgets/icon_button_widget.hpp"
-#include "guiengine/widgets/label_widget.hpp"
-#include "guiengine/widgets/ribbon_widget.hpp"
 #include "online/online_profile.hpp"
-#include "online/profile_manager.hpp"
 #include "states_screens/state_manager.hpp"
 #include "utils/translation.hpp"
 #include "states_screens/online/online_profile_friends.hpp"
@@ -45,7 +41,7 @@ using namespace irr::gui;
 using namespace Online;
 
 
-OnlineProfileBase::OnlineProfileBase(const std::string &filename)
+OnlineProfileBase::OnlineProfileBase(const std::string &filename) 
                  : Screen(filename.c_str())
 {
     m_friends_tab = NULL;

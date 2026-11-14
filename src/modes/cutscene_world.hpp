@@ -22,13 +22,11 @@
 #include "modes/world_with_rank.hpp"
 #include "states_screens/race_gui_base.hpp"
 
-namespace irr
-{
-    namespace scene { class ICameraSceneNode; }
-}
-
+#include <IMesh.h>
 
 #include <string>
+#include <ICameraSceneNode.h>
+
 
 class TrackObject;
 
@@ -38,7 +36,7 @@ class TrackObject;
  */
 class CutsceneWorld : public World
 {
-    irr::scene::ICameraSceneNode* m_camera;
+    scene::ICameraSceneNode* m_camera;
 
     std::map<float, std::vector<TrackObject*> > m_sounds_to_trigger;
     std::map<float, std::vector<TrackObject*> > m_sounds_to_stop;

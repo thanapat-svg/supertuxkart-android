@@ -18,16 +18,15 @@
 #ifndef SERVER_ONLY
 #include "graphics/fixed_pipeline_renderer.hpp"
 #include "config/user_config.hpp"
-#include "graphics/camera/camera.hpp"
+#include "graphics/camera.hpp"
 #include "graphics/irr_driver.hpp"
 #include "graphics/render_target.hpp"
 #include "modes/world.hpp"
 #include "physics/physics.hpp"
 #include "utils/profiler.hpp"
 
-#include <ISceneManager.h>
-#include <IVideoDriver.h>
 
+    
 void FixedPipelineRenderer::onLoadWorld()
 {
     
@@ -39,10 +38,10 @@ void FixedPipelineRenderer::onUnloadWorld()
 }
 
 void FixedPipelineRenderer::render(float dt, bool is_loading)
-{
+{    
     World *world = World::getWorld(); // Never NULL.
 
-    irr_driver->getVideoDriver()->beginScene(/*backBuffer clear*/ true,
+    irr_driver->getVideoDriver()->beginScene(/*backBuffer clear*/ true, 
                                              /*zBuffer*/ true,
                                              irr_driver->getClearColor());
     

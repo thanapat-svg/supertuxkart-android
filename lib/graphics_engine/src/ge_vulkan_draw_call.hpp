@@ -4,7 +4,6 @@
 #include <array>
 #include <functional>
 #include <map>
-#include <memory>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -25,7 +24,7 @@ namespace irr
     namespace scene
     {
         class ISceneNode; class IBillboardSceneNode; struct SParticle;
-        class IMesh; class ILightSceneNode;
+        class IMesh;
     }
 }
 
@@ -37,13 +36,7 @@ class GEVulkanAnimatedMeshSceneNode;
 class GEVulkanCameraSceneNode;
 class GEVulkanDriver;
 class GEVulkanDynamicBuffer;
-class GEVulkanDynamicSPMBuffer;
-class GEVulkanLightHandler;
-class GEVulkanSkyBoxRenderer;
 class GEVulkanTextureDescriptor;
-
-typedef std::pair<std::vector<VkVertexInputBindingDescription>,
-    std::vector<VkVertexInputAttributeDescription> > VertexDescription;
 
 struct ObjectData
 {
@@ -72,40 +65,21 @@ struct ObjectData
               bool sky_particle, bool backface_culling);
 };
 
-enum GEVulkanPipelineType : unsigned
-{
-    GVPT_DEPTH = 1,
-    GVPT_SOLID,
-    GVPT_DEFERRED_LIGHTING,
-    GVPT_DEFERRED_CONVERT_COLOR,
-    GVPT_GHOST_DEPTH,
-    GVPT_TRANSPARENT,
-    GVPT_SKYBOX,
-    GVPT_DISPLACE_MASK,
-    GVPT_DISPLACE_COLOR,
-};
-
-struct GEMaterial;
-
 struct PipelineSettings
 {
+    std::string m_vertex_shader;
+    std::string m_skinning_vertex_shader;
+    std::string m_fragment_shader;
     std::string m_shader_name;
-    std::shared_ptr<const GEMaterial> m_material;
+    bool m_alphablend;
+    bool m_additive;
+    bool m_backface_culling;
+    bool m_depth_test;
+    bool m_depth_write;
     char m_drawing_priority;
-    VkPipelineLayout m_custom_pl;
-    VkCompareOp m_depth_op;
-    VkPrimitiveTopology m_topology;
-    VertexDescription m_vertex_description;
-    GEVulkanPipelineType m_pipeline_type;
+    std::function<void(uint32_t*, void**)> m_push_constants_func;
 
-    PipelineSettings();
-    void loadMaterial(const GEMaterial& m);
-};
-
-struct PipelineData
-{
-    PipelineSettings m_settings;
-    std::map<GEVulkanPipelineType, std::shared_ptr<VkPipeline> > m_pipelines;
+    bool isTransparent() const { return m_alphablend || m_additive; }
 };
 
 struct DrawCallData
@@ -114,11 +88,10 @@ struct DrawCallData
     std::string m_shader;
     std::string m_sorting_key;
     GESPMBuffer* m_mb;
-    int m_material_id;
+    bool m_transparent;
     uint32_t m_dynamic_offset;
 };
 
-class GEVulkanHiZDepth;
 class GEVulkanDrawCall
 {
 private:
@@ -135,19 +108,13 @@ private:
 
     btQuaternion m_billboard_rotation;
 
-    std::map<std::pair<GESPMBuffer*, TexturesList>, std::unordered_map<std::string,
+    std::unordered_map<GESPMBuffer*, std::unordered_map<std::string,
         std::vector<std::pair<irr::scene::ISceneNode*, int> > > >
         m_visible_nodes;
 
-    std::map<std::pair<GESPMBuffer*, TexturesList>, irr::scene::IMesh*> m_mb_map;
-
-    std::map<std::string, std::vector<
-        std::pair<GEVulkanDynamicSPMBuffer*, irr::scene::ISceneNode*> > >
-        m_dynamic_spm_buffers;
+    std::unordered_map<GESPMBuffer*, irr::scene::IMesh*> m_mb_map;
 
     GECullingTool* m_culling_tool;
-
-    GEVulkanLightHandler* m_light_handler;
 
     std::vector<DrawCallData> m_cmds;
 
@@ -165,7 +132,7 @@ private:
 
     size_t m_materials_padded_size;
 
-    size_t m_dynamic_spm_padded_size;
+    int m_current_buffer_idx;
 
     bool m_update_data_descriptor_sets;
 
@@ -175,15 +142,12 @@ private:
 
     std::vector<VkDescriptorSet> m_data_descriptor_sets;
 
-    VkPipelineLayout m_pipeline_layout, m_skybox_layout;
+    VkPipelineLayout m_pipeline_layout;
 
-    std::vector<VkPipelineLayout> m_deferred_layouts;
+    std::unordered_map<std::string, std::pair<VkPipeline, PipelineSettings> >
+        m_graphics_pipelines;
 
-    std::unordered_map<std::string, PipelineData> m_graphics_pipelines;
-
-    std::unordered_map<GEVulkanDynamicSPMBuffer*, std::pair<int, size_t> > m_dyspmb_materials;
-
-    GEVulkanSkyBoxRenderer* m_skybox_renderer;
+    std::unordered_map<GESPMBuffer*, int> m_materials;
 
     GEVulkanTextureDescriptor* m_texture_descriptor;
 
@@ -192,23 +156,28 @@ private:
     std::unordered_map<std::string, std::pair<uint32_t, std::vector<int> > >
         m_materials_data;
 
-    GEVulkanHiZDepth* m_hiz_depth;
-
     // ------------------------------------------------------------------------
     void createAllPipelines(GEVulkanDriver* vk);
     // ------------------------------------------------------------------------
-    void createPipeline(GEVulkanDriver* vk, const PipelineSettings& settings,
-      std::unordered_map<std::string, std::shared_ptr<VkPipeline> >& dp_cache);
+    void createPipeline(GEVulkanDriver* vk, const PipelineSettings& settings);
     // ------------------------------------------------------------------------
     void createVulkanData();
     // ------------------------------------------------------------------------
-    std::string getShader(const irr::video::SMaterial& m);
-    // ------------------------------------------------------------------------
     std::string getShader(irr::scene::ISceneNode* node, int material_id);
     // ------------------------------------------------------------------------
-    bool bindPipeline(VkCommandBuffer cmd, const std::string& name,
-                      VkPipeline* prev_pipeline,
-                      GEVulkanPipelineType pt) const;
+    void bindPipeline(VkCommandBuffer cmd, const std::string& name) const
+    {
+        auto& ret = m_graphics_pipelines.at(name);
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, ret.first);
+        if (ret.second.m_push_constants_func)
+        {
+            uint32_t size;
+            void* data;
+            ret.second.m_push_constants_func(&size, &data);
+            vkCmdPushConstants(cmd, m_pipeline_layout,
+                VK_SHADER_STAGE_ALL_GRAPHICS, 0, size, data);
+        }
+    }
     // ------------------------------------------------------------------------
     TexturesList getTexturesList(const irr::video::SMaterial& m)
     {
@@ -221,46 +190,6 @@ private:
     size_t getInitialSBOSize() const;
     // ------------------------------------------------------------------------
     void updateDataDescriptorSets(GEVulkanDriver* vk);
-    // ------------------------------------------------------------------------
-    void bindBaseVertex(GEVulkanDriver* vk, VkCommandBuffer cmd);
-    // ------------------------------------------------------------------------
-    std::string getDynamicBufferKey(const std::string& shader) const
-    {
-        char drawing_priority = (char)1;
-        auto it = m_graphics_pipelines.find(shader);
-        if (it != m_graphics_pipelines.end())
-            drawing_priority = it->second.m_settings.m_drawing_priority;
-        return std::string(1, drawing_priority) + shader;
-    }
-    // ------------------------------------------------------------------------
-    std::string getShaderFromKey(const std::string& key) const
-                                                      { return key.substr(1); }
-    // ------------------------------------------------------------------------
-    void bindSingleMaterial(VkCommandBuffer cmd,
-                            const std::string& cur_pipeline,
-                            int material_id, GEVulkanPipelineType pt);
-    // ------------------------------------------------------------------------
-    void bindDataDescriptor(VkCommandBuffer cmd, int current_buffer_idx,
-                            std::vector<uint32_t>& dynamic_offsets)
-    {
-        vkCmdBindDescriptorSets(cmd,
-            VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline_layout, 1, 1,
-            &m_data_descriptor_sets[current_buffer_idx],
-            dynamic_offsets.size(), dynamic_offsets.data());
-    }
-    // ------------------------------------------------------------------------
-    VertexDescription getDefaultVertexDescription() const;
-    // ------------------------------------------------------------------------
-    size_t getLightDataOffset() const;
-    // ------------------------------------------------------------------------
-    std::vector<uint32_t> getDefaultDynamicOffsets() const;
-    // ------------------------------------------------------------------------
-    VkRenderPass getRenderPassForPipelineCreation(GEVulkanDriver* vk,
-                                                  GEVulkanPipelineType type);
-    // ------------------------------------------------------------------------
-    uint32_t getSubpassForPipelineCreation(GEVulkanDriver* vk,
-                                           GEVulkanPipelineType type);
-
 public:
     // ------------------------------------------------------------------------
     GEVulkanDrawCall();
@@ -274,31 +203,13 @@ public:
     // ------------------------------------------------------------------------
     void prepare(GEVulkanCameraSceneNode* cam);
     // ------------------------------------------------------------------------
-    void generate(GEVulkanDriver* vk);
+    void generate();
     // ------------------------------------------------------------------------
     void uploadDynamicData(GEVulkanDriver* vk, GEVulkanCameraSceneNode* cam,
                            VkCommandBuffer custom_cmd = VK_NULL_HANDLE);
     // ------------------------------------------------------------------------
-    bool doDepthOnlyRenderingFirst();
-    // ------------------------------------------------------------------------
-    void bindAllMaterials(VkCommandBuffer cmd);
-    // ------------------------------------------------------------------------
-    void prepareRendering(GEVulkanDriver* vk);
-    // ------------------------------------------------------------------------
-    void prepareViewport(GEVulkanDriver* vk, GEVulkanCameraSceneNode* cam,
-                         VkCommandBuffer cmd);
-    // ------------------------------------------------------------------------
-    void renderPipeline(GEVulkanDriver* vk, VkCommandBuffer cmd,
-                        GEVulkanPipelineType pt, bool& rebind_base_vertex);
-    // ------------------------------------------------------------------------
-    bool renderSkyBox(GEVulkanDriver* vk, VkCommandBuffer cmd);
-    // ------------------------------------------------------------------------
-    void renderDeferredLighting(GEVulkanDriver* vk, VkCommandBuffer cmd);
-    // ------------------------------------------------------------------------
-    void renderDeferredConvertColor(GEVulkanDriver* vk, VkCommandBuffer cmd);
-    // ------------------------------------------------------------------------
-    void renderDisplaceColor(GEVulkanDriver* vk, VkCommandBuffer cmd,
-                             VkBool32 has_displace);
+    void render(GEVulkanDriver* vk, GEVulkanCameraSceneNode* cam,
+                VkCommandBuffer custom_cmd = VK_NULL_HANDLE);
     // ------------------------------------------------------------------------
     unsigned getPolyCount() const
     {
@@ -314,26 +225,10 @@ public:
         m_mb_map.clear();
         m_cmds.clear();
         m_visible_objects.clear();
-        m_dyspmb_materials.clear();
+        m_materials.clear();
         m_skinning_nodes.clear();
         m_materials_data.clear();
-        m_dynamic_spm_buffers.clear();
-        m_skybox_renderer = NULL;
     }
-    // ------------------------------------------------------------------------
-    void addSkyBox(irr::scene::ISceneNode* node);
-    // ------------------------------------------------------------------------
-    void addLightNode(irr::scene::ILightSceneNode* node);
-    // ------------------------------------------------------------------------
-    bool hasShaderForRendering(const std::string& shader)
-    {
-        const std::string& dbk = getDynamicBufferKey(shader);
-        if (m_dynamic_spm_buffers.find(dbk) != m_dynamic_spm_buffers.end())
-            return true;
-        return m_materials_data.find(shader) != m_materials_data.end();
-    }
-    // ------------------------------------------------------------------------
-    GEVulkanHiZDepth* getHiZDepth() const               { return m_hiz_depth; }
 };   // GEVulkanDrawCall
 
 }

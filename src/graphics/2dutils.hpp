@@ -49,13 +49,14 @@ void draw2DImage(const irr::video::ITexture* texture,
                  const irr::core::rect<irr::s32>& sourceRect,
                  const irr::core::rect<irr::s32>* clipRect,
                  const irr::video::SColor* const colors,
-                 bool useAlphaChannelOfTexture);
+                 bool useAlphaChannelOfTexture, bool draw_translucently = false,
+                 float rotation = 0.0f);
 
-void draw2DImageRotationColor(irr::video::ITexture* texture,
+void draw2DImageCustomAlpha(const irr::video::ITexture* texture,
                  const irr::core::rect<irr::s32>& destRect,
                  const irr::core::rect<irr::s32>& sourceRect,
                  const irr::core::rect<irr::s32>* clipRect,
-                 float rotation, const irr::video::SColor& color);
+                 float rotation, float custom_alpha);
 
 void draw2DVertexPrimitiveList(irr::video::ITexture *t, const void* vertices,
                   irr::u32 vertexCount, const void* indexList,

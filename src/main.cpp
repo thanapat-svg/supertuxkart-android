@@ -72,11 +72,11 @@
  online_manager -> "STK Server"
  "STK Server" -> online_manager
  karts -> replay
- replay
+ replay 
  # force karts and tracks on the same level, looks better this way
- subgraph {
-  rank = same; karts; tracks;
- }
+ subgraph { 
+  rank = same; karts; tracks; 
+ } 
 
 }
  \enddot
@@ -211,10 +211,9 @@ extern "C" {
 #include "config/stk_config.hpp"
 #include "config/user_config.hpp"
 #include "font/font_manager.hpp"
-#include "graphics/camera/camera.hpp"
-#include "graphics/camera/camera_debug.hpp"
+#include "graphics/camera.hpp"
+#include "graphics/camera_debug.hpp"
 #include "graphics/central_settings.hpp"
-#include "graphics/graphical_presets.hpp"
 #include "graphics/graphics_restrictions.hpp"
 #include "graphics/irr_driver.hpp"
 #include "graphics/material_manager.hpp"
@@ -294,8 +293,6 @@ extern "C" {
 #include "utils/translation.hpp"
 #include "io/rich_presence.hpp"
 
-#include <IrrlichtDevice.h>
-
 static void cleanSuperTuxKart();
 static void cleanUserConfig();
 void runUnitTests();
@@ -324,7 +321,7 @@ void gamepadVisualisation()
 
                     if (evt.PressedDown)
                     {
-                        if (evt.Key == IRR_KEY_RETURN ||
+                        if (evt.Key == IRR_KEY_RETURN || 
                             evt.Key == IRR_KEY_ESCAPE ||
                             evt.Key == IRR_KEY_SPACE)
                         {
@@ -515,36 +512,12 @@ void setupRaceStart()
     // a current player
     PlayerManager::get()->enforceCurrentPlayer();
 
-    InputDevice *device = NULL;
+    InputDevice *device;
 
-    // Assign the player a device; check the command line params for preferences; by default use keyboard 0
+    // Use keyboard 0 by default in --no-start-screen
+    device = input_manager->getDeviceManager()->getKeyboard(0);
 
-    if(UserConfigParams::m_default_keyboard > -1)
-    {
-        device = input_manager->getDeviceManager()->getKeyboard(UserConfigParams::m_default_keyboard);
-    }
-    else if(UserConfigParams::m_default_gamepad > -1)
-    {
-        // getGamePad(int) returns a GamePadDevice which is a subclass of InputDevice
-        // However, the compiler doesn't like it so it has to be manually casted in
-        device = (InputDevice *) input_manager->getDeviceManager()->getGamePad(UserConfigParams::m_default_gamepad);
-    }
-    // If no config requested or if the requested config doesn't exist
-    if (device == NULL)
-    {
-        if (UserConfigParams::m_default_keyboard > -1 ||
-            UserConfigParams::m_default_gamepad > -1)
-        {
-            Log::error("main", "Requested input device unavailable, fallback to the default keyboard");
-        }
-        device = input_manager->getDeviceManager()->getKeyboard(0);
-    }
-
-    // In case the requested config was disabled, enable it.
-    if (!device->getConfiguration()->isEnabled())
-        device->getConfiguration()->setEnabled(true);
-
-    // Create player and associate player with device
+    // Create player and associate player with keyboard
     StateManager::get()->createActivePlayer(
         PlayerManager::get()->getPlayer(0), device);
 
@@ -582,14 +555,10 @@ void cmdLineHelp()
                               "menu.\n"
     "  -R,  --race-now         Same as -N but also skip the ready-set-go phase"
                               " and the music.\n"
-    "       --use-keyboard=N   Used in conjunction with the -N or -R option, will assign the player to the specified"
-                              " keyboard. Is zero indexed.\n"
-    "       --use-gamepad=N    Used in conjunction with the -N or -R option, will assign the player to the specified"
-                              " gamepad. Is zero indexed.\n"
     "  -t,  --track=NAME       Start track NAME.\n"
     "       --gp=NAME          Start the specified Grand Prix.\n"
-    "       --add-gp-dir=DIR   Load Grand Prix files in DIR. Setting will be saved"
-                              "in config.xml under additional_gp_directory. Use"
+    "       --add-gp-dir=DIR   Load Grand Prix files in DIR. Setting will be saved\n"
+                              "in config.xml under additional_gp_directory. Use\n"
                               "--add-gp-dir=\"\" to unset.\n"
     "       --stk-config=FILE  use ./data/FILE instead of "
                               "./data/stk_config.xml\n"
@@ -597,7 +566,7 @@ void cmdLineHelp()
     "       --kart=NAME        Use kart NAME.\n"
     "       --ai=a,b,...       Use the karts a, b, ... for the AI, and additional player kart.\n"
     "       --aiNP=a,b,...     Use the karts a, b, ... for the AI, no additional player kart.\n"
-    "       --laps=N           Define number of laps to N, if used in a server all races will use this value.\n"
+    "       --laps=N           Define number of laps to N.\n"
     "       --mode=N           N=0 Normal, N=1 Time trial, N=2 Battle, N=3 Soccer,\n"
     "                          N=4 Follow The Leader, N=5 Capture The Flag. In configure server use --battle-mode=n\n"
     "                          for battle server and --soccer-timed / goals for soccer server\n"
@@ -621,8 +590,6 @@ void cmdLineHelp()
                               "laps.\n"
     "       --profile-time=n   Enable automatic driven profile mode for n "
                               "seconds.\n"
-    "       --benchmark        Start Benchmark Mode, save results and exit.\n"
-    "       --benchmark-file=file Specify which benchmark replay file to use.\n"
     "       --unlock-all       Permanently unlock all karts and tracks for testing.\n"
     "       --no-unlock-all    Disable unlock-all (i.e. base unlocking on player achievement).\n"
     "       --xmas=n           Toggle Xmas/Christmas mode. n=0 Use current date, n=1, Always enable,\n"
@@ -688,9 +655,6 @@ void cmdLineHelp()
     "                          with colons (:).\n"
     "       --cutscene=NAME    Launch the specified track as a cutscene.\n"
     "                          This is for internal debugging use only.\n"
-    "       --gfx-preset=n     Set the graphics settings to the selected preset.\n"
-    "                          Valid values for this STK version are between 1 and 7.\n"
-    "                          Other graphic command-line parameters will override the preset.\n"
     "       --enable-glow      Enable glow effect.\n"
     "       --disable-glow     Disable glow effect.\n"
     "       --enable-bloom     Enable bloom effect.\n"
@@ -699,8 +663,6 @@ void cmdLineHelp()
     "       --disable-light-shaft Disable light shafts (God rays).\n"
     "       --enable-dof       Enable depth of field.\n"
     "       --disable-dof      Disable depth of field.\n"
-    "       --enable-speed-streaks  Enable speed streaks.\n"
-    "       --disable-speed-streaks Disable speed streaks.\n"
     "       --enable-particles  Enable particles.\n"
     "       --disable-particles Disable particles.\n"
     "       --enable-animated-characters  Enable animated characters.\n"
@@ -717,20 +679,12 @@ void cmdLineHelp()
     "       --disable-ibl      Disable image based lighting.\n"
     "       --enable-hd-textures Enable high definition textures.\n"
     "       --disable-hd-textures Disable high definition textures.\n"
-    "       --enable-pcss      Enable percentage-closer soft shadows.\n"
-    "       --disable-pcss     Disable percentage-closer soft-shadows.\n"
-    "       --enable-ssr       Enable screen space reflections.\n"
-    "       --disable-ssr      Disable screen space reflections.\n"
-    "       --enable-light-scatter  Enable light scattering.\n"
-    "       --disable-light-scatter Disable light scattering.\n"
     "       --enable-dynamic-lights Enable advanced pipeline.\n"
     "       --disable-dynamic-lights Disable advanced pipeline.\n"
     "       --anisotropic=n     Anisotropic filtering quality (0 to disable).\n"
-    "                           Takes precedence over trilinear or bilinear texture filtering.\n"
+    "                           Takes precedence over trilinear or bilinear\n"
+    "                           texture filtering.\n"
     "       --shadows=n         Set resolution of shadows (0 to disable).\n"
-    "       --geometry-level=n  Sets the LoD distances. Supported values range from 0 to 5.\n"
-    "       --rtt-scale=n       Sets the render resolution as a percentage of the base resolution.\n"
-    "                           Only works if dynamic lights are active."
     "       --render-driver=n   Render driver to use (gl or directx9).\n"
     "       --disable-addon-karts Disable loading of addon karts.\n"
     "       --disable-addon-tracks Disable loading of addon tracks.\n"
@@ -950,32 +904,6 @@ int handleCmdLinePreliminary()
     if(CommandLine::has("--windowed") || CommandLine::has("-w"))
         UserConfigParams::m_fullscreen = false;
 
-    int n;
-    if (CommandLine::has("--gfx-preset", &n))
-    {
-        if (n <= 0 || n > (int)GraphicalPresets::gfx_presets.size())
-        {
-            Log::warn("main", "Invalid graphical preset (%i), ignored", n);
-        }
-        else
-        {
-            if ((strcmp(UserConfigParams::m_render_driver.c_str(), "vulkan")   == 0 && n >= 4) ||
-                (strcmp(UserConfigParams::m_render_driver.c_str(), "directx9") == 0 && n >= 3))
-            {
-                Log::warn("main", "Some settings of the selected preset (%i) are not "
-                    "supported by the current renderer!");
-            }
-
-            // Apply the chosen graphical presets
-            if (strcmp(UserConfigParams::m_render_driver.c_str(), "vulkan") == 0 && n <= 2)
-                Log::error("main", "The vulkan renderer does not support the very low presets!");
-            else if (UserConfigParams::m_force_legacy_device)
-                Log::error("main", "The legacy renderer cannot use any of the gfx presets!");
-            else
-                GraphicalPresets::applyGFXPreset(n);
-        }
-    }
-
     // toggle graphical options
     if (CommandLine::has("--enable-glow"))
         UserConfigParams::m_glow = true;
@@ -998,11 +926,6 @@ int handleCmdLinePreliminary()
         UserConfigParams::m_dof = true;
     else if (CommandLine::has("--disable-dof"))
         UserConfigParams::m_dof = false;
-    // speed streaks
-    if (CommandLine::has("--enable-speed-streaks"))
-        UserConfigParams::m_speed_streaks = true;
-    else if (CommandLine::has("--disable-speed-streaks"))
-        UserConfigParams::m_speed_streaks = false;
     // particles effects
     if (CommandLine::has("--enable-particles"))
         UserConfigParams::m_particles_effects = 2;
@@ -1041,30 +964,6 @@ int handleCmdLinePreliminary()
         UserConfigParams::m_high_definition_textures =  2 | 1;
     else if (CommandLine::has("--disable-hd-textures"))
         UserConfigParams::m_high_definition_textures = 2;
-    // percentage-closer soft shadows
-    if (CommandLine::has("--enable-pcss"))
-        UserConfigParams::m_pcss = true;
-    else if (CommandLine::has("--disable-pcss"))
-        UserConfigParams::m_pcss = false;
-    // screen space reflections
-    if (CommandLine::has("--enable-ssr"))
-        UserConfigParams::m_ssr = true;
-    else if (CommandLine::has("--disable-ssr"))
-        UserConfigParams::m_ssr = false;
-    // light scattering
-    if (CommandLine::has("--enable-light-scatter"))
-        UserConfigParams::m_light_scatter = true;
-    else if (CommandLine::has("--disable-light-scatter"))
-        UserConfigParams::m_light_scatter = false;
-
-    if (CommandLine::has("--shadows", &n))
-        UserConfigParams::m_shadows_resolution = n;
-    if (CommandLine::has("--anisotropic", &n))
-        UserConfigParams::m_anisotropic = n;
-    if (CommandLine::has("--geometry-level", &n))
-        UserConfigParams::m_geometry_level = n;
-    if (CommandLine::has("--rtt-scale", &n))
-        UserConfigParams::m_scale_rtts_factor = ((float) n) / 100.0f;
 
     // Enable loading grand prix from local directory
     if(CommandLine::has("--add-gp-dir", &s))
@@ -1079,11 +978,15 @@ int handleCmdLinePreliminary()
                            UserConfigParams::m_additional_gp_directory.c_str());
     }
 
-
+    int n;
     if(CommandLine::has("--xmas", &n))
         UserConfigParams::m_xmas_mode = n;
     if (CommandLine::has("--easter", &n))
         UserConfigParams::m_easter_ear_mode = n;
+    if (CommandLine::has("--shadows", &n))
+        UserConfigParams::m_shadows_resolution = n;
+    if (CommandLine::has("--anisotropic", &n))
+        UserConfigParams::m_anisotropic = n;
 
     // Useful for debugging: the temple navmesh needs 12 minutes in debug
     // mode to compute the distance matrix!!
@@ -1096,7 +999,6 @@ int handleCmdLinePreliminary()
     if (CommandLine::has("--seed", &n))
     {
         srand(n);
-        RandomGenerator::seed(n);
         Log::info("main", "STK using random seed (%d)", n);
     }
 
@@ -1393,28 +1295,49 @@ int handleCmdLine(bool has_server_config, bool has_parent_process)
         ServerConfig::m_motd = s;
 
     if (CommandLine::has("--team-choosing"))
+    {
         ServerConfig::m_team_choosing = true;
+    }
     if (CommandLine::has("--no-team-choosing"))
+    {
         ServerConfig::m_team_choosing = false;
+    }
     if (CommandLine::has("--ranked"))
+    {
         ServerConfig::m_ranked = true;
+    }
     if (CommandLine::has("--no-ranked"))
+    {
         ServerConfig::m_ranked = false;
+    }
     if (CommandLine::has("--auto-end"))
+    {
         ServerConfig::m_auto_end = true;
+    }
     if (CommandLine::has("--no-auto-end"))
+    {
         ServerConfig::m_auto_end = false;
+    }
     if (CommandLine::has("--owner-less"))
+    {
         ServerConfig::m_owner_less = true;
+    }
     if (CommandLine::has("--no-owner-less"))
+    {
         ServerConfig::m_owner_less = false;
+    }
     if (CommandLine::has("--firewalled-server"))
+    {
         ServerConfig::m_firewalled_server = true;
+    }
     if (CommandLine::has("--no-firewalled-server"))
+    {
         ServerConfig::m_firewalled_server = false;
+    }
     if (CommandLine::has("--connection-debug"))
+    {
         Network::m_connection_debug = true;
-
+    }
     if (CommandLine::has("--server-id-file", &s))
     {
         NetworkConfig::get()->setServerIdFile(
@@ -1655,7 +1578,6 @@ int handleCmdLine(bool has_server_config, bool has_parent_process)
         const std::vector<std::string> l=StringUtils::split(std::string(s),',');
         RaceManager::get()->setDefaultAIKartList(l);
         RaceManager::get()->setNumKarts((int)l.size());
-        RaceManager::get()->setNumPlayers(0);
     }   // --aiNP
 
     if(CommandLine::has("--reverse"))
@@ -1750,76 +1672,36 @@ int handleCmdLine(bool has_server_config, bool has_parent_process)
         UserConfigParams::m_race_now = true;
     }   // --race-now
 
-    if(CommandLine::has( "--use-keyboard",&n)) {
-        UserConfigParams::m_default_keyboard = n;
-    } //--use-keyboard
-
-    if(CommandLine::has( "--use-gamepad",&n)) {
-        UserConfigParams::m_default_gamepad = n;
-    } //--use-gamepad
-
-    if(CommandLine::has("--laps", &n))
+    if(CommandLine::has("--laps", &s))
     {
-        if (n <= 0)
+        int laps = atoi(s.c_str());
+        if (laps < 0)
         {
-            Log::error("main", "Invalid number of laps: %i.\n", n);
+            Log::error("main", "Invalid number of laps: %s.\n", s.c_str());
             return 0;
         }
-
-        Log::verbose("main", "You chose to have %d laps.", n);
-        if (NetworkConfig::get()->isServer())
-            ServerLobby::m_fixed_laps = n;
         else
-            RaceManager::get()->setNumLaps(n);
+        {
+            Log::verbose("main", "You chose to have %d laps.", laps);
+            RaceManager::get()->setNumLaps(laps);
+        }
     }   // --laps
 
     if(CommandLine::has("--profile-laps",  &n))
     {
-        if (n <= 0)
+        if (n < 0)
         {
             Log::error("main", "Invalid number of profile-laps: %i.", n );
             return 0;
         }
-
-        Log::verbose("main", "Profiling %d laps.",n);
-        UserConfigParams::m_no_start_screen = true;
-        ProfileWorld::setProfileModeLaps(n);
-        RaceManager::get()->setNumLaps(n);
-    }   // --profile-laps
-
-    if(CommandLine::has("--benchmark"))
-    {
-        Log::verbose("main", "Benchmark mode requested from command-line");
-        UserConfigParams::m_no_start_screen = true;
-        UserConfigParams::m_benchmark = true;
-    }   // --benchmark
-
-    if(CommandLine::has("--benchmark-file", &s))
-    {
-        Log::verbose("main", "File '%s' requested as benchmark file", s.c_str());
-
-        if (s.find(".replay") != std::string::npos)
-        {
-            bool found_replay = false;
-            for (unsigned int i=0; i < stk_config->m_benchmark_files.size(); i++)
-            {
-                if (stk_config->m_benchmark_files[i] == s)
-                {
-                    found_replay = true;
-                    stk_config->m_active_benchmark_file = s;
-                    break;
-                }
-            }
-            if (!found_replay)
-                Log::error("main","The requested benchmark file '%s' "
-                    "isn't registered as a benchmark file in stk_config.xml.", s.c_str());
-        }
         else
         {
-            Log::error("main","The requested benchmark file '%s' "
-                "is not a .replay file.", s.c_str());
+            Log::verbose("main", "Profiling %d laps.",n);
+            UserConfigParams::m_no_start_screen = true;
+            ProfileWorld::setProfileModeLaps(n);
+            RaceManager::get()->setNumLaps(n);
         }
-    }   // --benchmark-file
+    }   // --profile-laps
     
     if(CommandLine::has("--unlock-all"))
     {
@@ -1958,7 +1840,6 @@ void clearGlobalVariables()
 //=============================================================================
 void initRest()
 {
-    GUIEngine::reserveLoadingIcons(2);
     SP::setMaxTextureSize();
     irr_driver = new IrrDriver();
 
@@ -2077,7 +1958,6 @@ void initRest()
     }
 
     track_manager->loadTrackList();
-    stk_config->validateBenchmarkReplays();
     music_manager->addMusicToTracks();
 
     GUIEngine::addLoadingIcon(irr_driver->getTexture(FileManager::GUI_ICON,
@@ -2104,11 +1984,6 @@ void initRest()
 
     RaceManager::get()->setTrack(UserConfigParams::m_last_track);
 
-#if !defined(SERVER_ONLY) && defined(_IRR_COMPILE_WITH_SDL_DEVICE_)
-    // Disable text input mode to prevent IMEs from eating inputs (see #5829)
-    // In SDL2, text input mode is on by default (it's off by default in SDL3)
-    SDL_StopTextInput();
-#endif
 }   // initRest
 
 //=============================================================================
@@ -2152,12 +2027,12 @@ void askForInternetPermission()
 
     MessageDialog *dialog =
     new MessageDialog(_("SuperTuxKart may connect to a server "
-        "to download add-ons and notify you of updates.") + L"\n\n"
-        + _("Please read our privacy policy at %s.",
-            StringUtils::utf8ToWide(stk_config->m_privacy_url))
-        + L"\n\n" + _("Would you like this feature to be enabled? (To change this setting "
+        "to download add-ons and notify you of updates. "
+        "Please read our privacy policy at https://supertuxkart.net/Privacy. "
+        "Would you like this feature to be enabled? (To change this setting "
         "at a later time, go to options, select tab "
-        "'General', and edit \"Connect to the Internet\")."),
+        "'General', and edit \"Connect to the "
+        "Internet\")."),
         MessageDialog::MESSAGE_DIALOG_YESNO,
         new ConfirmServer(), true, true, 0.85f, 0.85f);
 
@@ -2240,6 +2115,7 @@ int main(int argc, char *argv[])
 
     // Up number of maximum concurrent sockets, otherwise we can fail while loading with nxlink
     const SocketInitConfig socketConfig = {
+        .bsdsockets_version = 1,
         .tcp_tx_buf_size        = 0x8000,
         .tcp_rx_buf_size        = 0x10000,
         .tcp_tx_buf_max_size    = 0x40000,
@@ -2281,9 +2157,6 @@ int main(int argc, char *argv[])
         });
 #endif
     srand(( unsigned ) time( 0 ));
-
-    // Init the graphical presets
-    GraphicalPresets::initPresets();
 
     try
     {
@@ -2389,7 +2262,6 @@ int main(int argc, char *argv[])
         wiimote_manager = new WiimoteManager();
 #endif
 
-        GUIEngine::reserveLoadingIcons(1);
         int parent_pid;
         bool has_parent_process = false;
         if (CommandLine::has("--parent-process", &parent_pid))
@@ -2399,11 +2271,19 @@ int main(int argc, char *argv[])
         }
         else
             main_loop = new MainLoop(0/*parent_pid*/);
+        material_manager->loadMaterial();
 
-        // Set of loading steps common between the first game launch and
-        // reloading to apply a new resolution.
-        irr_driver->commonInit();
+        // Preload the explosion effects (explode.png)
+        ParticleKindManager::get()->getParticles("explosion.xml");
+        ParticleKindManager::get()->getParticles("explosion_bomb.xml");
+        ParticleKindManager::get()->getParticles("explosion_cake.xml");
+        ParticleKindManager::get()->getParticles("jump_explosion.xml");
 
+        GUIEngine::addLoadingIcon( irr_driver->getTexture(FileManager::GUI_ICON,
+                                                          "options_video.png"));
+        kart_properties_manager -> loadAllKarts    ();
+        kart_properties_manager->onDemandLoadKartTextures(
+            { UserConfigParams::m_default_kart }, false/*unload_unused*/);
         OfficialKarts::load();
         handleXmasMode();
         handleEasterEarMode();
@@ -2421,6 +2301,35 @@ int main(int argc, char *argv[])
 
         GUIEngine::addLoadingIcon( irr_driver->getTexture(FileManager::GUI_ICON,
                                                           "gui_lock.png"  ) );
+        ProjectileManager::get()->loadData();
+
+        // Both item_manager and powerup_manager load models and therefore
+        // textures from the model directory. To avoid reading the
+        // materials.xml twice, we do this here once for both:
+        file_manager->pushTextureSearchPath(file_manager->getAsset(FileManager::MODEL,""), "models");
+        const std::string materials_file =
+            file_manager->getAsset(FileManager::MODEL,"materials.xml");
+        if(materials_file!="")
+        {
+            // Some of the materials might be needed later, so just add
+            // them all permanently (i.e. as shared). Adding them temporary
+            // will actually not be possible: powerup_manager adds some
+            // permanent icon materials, which would (with the current
+            // implementation) make the temporary materials permanent anyway.
+            material_manager->addSharedMaterial(materials_file);
+        }
+        Referee::init();
+        powerup_manager->loadPowerupsModels();
+        ItemManager::loadDefaultItemMeshes();
+
+        GUIEngine::addLoadingIcon( irr_driver->getTexture(FileManager::GUI_ICON,
+                                                          "gift.png")       );
+
+        attachment_manager->loadModels();
+        file_manager->popTextureSearchPath();
+
+        GUIEngine::addLoadingIcon( irr_driver->getTexture(FileManager::GUI_ICON,
+                                                          "banana.png")    );
 
         //handleCmdLine() needs InitTuxkart() so it can't be called first
         if (!handleCmdLine(!server_config.empty(), has_parent_process))
@@ -2529,7 +2438,7 @@ int main(int argc, char *argv[])
                 }
                 Log::warn("OpenGL", "Driver is too old!");
             }
-            else if (!CVS->isGLSL() && irr_driver->getVideoDriver()->getDriverType() != video::EDT_VULKAN)
+            else if (!CVS->isGLSL())
             {
                 #if !defined(MOBILE_STK)
                 if (UserConfigParams::m_old_driver_popup)
@@ -2574,7 +2483,6 @@ int main(int argc, char *argv[])
                 PlayerManager::get()->enforceCurrentPlayer();
             }
 
-#ifndef SERVER_ONLY // No GUI files in server builds
             // If there is a current player, it was saved in the config file,
             // so we immediately start the main menu (unless it was requested
             // to always show the login screen). Otherwise show the login
@@ -2596,7 +2504,6 @@ int main(int argc, char *argv[])
                     RegisterScreen::getInstance()->setParent(UserScreen::getInstance());
                 }
             }
-#endif // ifndef SERVER_ONLY
 #ifdef ENABLE_WIIUSE
             // Show a dialog to allow connection of wiimotes. */
             if(WiimoteManager::isEnabled())
@@ -2612,6 +2519,21 @@ int main(int argc, char *argv[])
             // Go straight to the race
             StateManager::get()->enterGameState();
         }
+
+#ifndef SERVER_ONLY
+        // If an important news message exists it is shown in a popup dialog.
+        if (!GUIEngine::isNoGraphics())
+        {
+            const core::stringw important_message =
+                                        NewsManager::get()->getImportantMessage();
+            if (important_message!="")
+            {
+                new MessageDialog(important_message,
+                                MessageDialog::MESSAGE_DIALOG_OK,
+                                NULL, true);
+            }   // if important_message
+        }
+#endif
 
         // Reset the story mode timer before going in the main loop
         // as it needs to be able to run continuously
@@ -2641,18 +2563,11 @@ int main(int argc, char *argv[])
         {
             if(UserConfigParams::m_no_start_screen)
             {
-                if (UserConfigParams::m_benchmark)
-                {
-                    profiler.startBenchmark();
-                }
-                else
-                {
-                    // Quickstart (-N)
-                    // ===============
-                    // all defaults are set in InitTuxkart()
-                    RaceManager::get()->setupPlayerKartInfo();
-                    RaceManager::get()->startNew(false);
-                }
+                // Quickstart (-N)
+                // ===============
+                // all defaults are set in InitTuxkart()
+                RaceManager::get()->setupPlayerKartInfo();
+                RaceManager::get()->startNew(false);
             }
         }
         else  // profile
@@ -2716,7 +2631,7 @@ int main(int argc, char *argv[])
     {
         Log::closeOutputFiles();
 #endif
-#if !defined(ANDROID) && !defined(ASAN_STK)
+#ifndef ANDROID
         fclose(stderr);
         fclose(stdout);
 #endif

@@ -138,7 +138,7 @@ private:
     /** This is the initial position of the object for the physics. */
     btTransform           m_init_pos;
 
-    /** Save current transform to avoid frequent lookup from
+    /** Save current transform to avoid frequent lookup from 
      * world transform. */
     btTransform           m_current_transform;
 
@@ -180,8 +180,7 @@ private:
     std::string           m_on_item_collision;
     /** If this body is a bullet dynamic body, i.e. affected by physics
      *  or not (static (not moving) or kinematic (animated outside
-     *  of physics).
-     *  Note that this MUST be constant throughout the object's lifetime. */
+     *  of physics). */
     bool                  m_is_dynamic;
 
     /** Non-null only if the shape is exact */
