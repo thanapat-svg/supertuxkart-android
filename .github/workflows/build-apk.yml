@@ -33,7 +33,7 @@ jobs:
           java-version: 17
 
       - name: Install NDK
-        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$NDK_VER" > /dev/null
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$NDK_VER" "build-tools;31.0.0" "platforms;android-31" > /dev/null
 
       - name: Fetch dependencies and assets
         run: |
@@ -79,6 +79,7 @@ jobs:
           COMPILE_ARCH: aarch64
           BUILD_TYPE: beta
           PROJECT_VERSION: "1.4"
+          BUILD_TOOLS_VER: 31.0.0
           PROJECT_CODE: ${{ github.run_number }}
           STK_KEYSTORE: ${{ github.workspace }}/android/stk-release.keystore
           STK_STOREPASS: assaultcube
