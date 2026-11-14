@@ -78,7 +78,7 @@ jobs:
         env:
           COMPILE_ARCH: aarch64
           BUILD_TYPE: beta
-          PROJECT_VERSION: ${{ env.VERSION_NAME }}
+          PROJECT_VERSION: "1.4"
           PROJECT_CODE: ${{ github.run_number }}
           STK_KEYSTORE: ${{ github.workspace }}/android/stk-release.keystore
           STK_STOREPASS: assaultcube
