@@ -22,7 +22,10 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq autoconf automake make python3 python3-packaging python3-mako flex bison \
-            imagemagick cmake meson subversion vorbis-tools pngquant advancecomp libjpeg-turbo-progs optipng > /dev/null
+            imagemagick cmake ninja-build ccache pkg-config subversion vorbis-tools pngquant advancecomp libjpeg-turbo-progs optipng > /dev/null
+          # mesa needs a newer meson than Ubuntu ships
+          pip3 install --user --break-system-packages -q "meson>=1.4" mako packaging pyyaml
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - uses: actions/setup-java@v4
         with:
