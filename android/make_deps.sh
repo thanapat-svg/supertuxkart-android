@@ -312,7 +312,7 @@ build_deps()
                 -DSPIRV_HEADERS_SKIP_INSTALL=1 -DSPIRV_HEADERS_SKIP_EXAMPLES=1 \
                 -DSKIP_SPIRV_TOOLS_INSTALL=1 -DSPIRV_SKIP_TESTS=1              \
                 -DSPIRV_SKIP_EXECUTABLES=1 -DENABLE_GLSLANG_BINARIES=0         \
-                -DENABLE_CTEST=0 &&
+                -DENABLE_CTEST=0 -DGLSLANG_ENABLE_INSTALL=OFF -DSKIP_GLSLANG_INSTALL=ON &&
         make -j $(($(nproc) + 1))
         # Strip debug symbol to make app bundle smaller
         llvm-strip --strip-debug "$DIRNAME/deps-$ARCH_OPTION/shaderc/libshaderc/libshaderc_combined.a"
