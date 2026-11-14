@@ -297,6 +297,9 @@ build_deps()
         cp -a -f "$DIRNAME/../lib/shaderc/"* "$DIRNAME/deps-$ARCH_OPTION/shaderc"
 
         cd "$DIRNAME/deps-$ARCH_OPTION/shaderc"
+        # shaderc passes a generator expression as GLSLANG_ENABLE_INSTALL, which CMake treats as "on"
+        # and then fails on glslang's export set; glslang never needs installing here
+        sed -i 's/set(GLSLANG_ENABLE_INSTALL \$<NOT:\${SKIP_GLSLANG_INSTALL}>)/set(GLSLANG_ENABLE_INSTALL OFF)/' third_party/CMakeLists.txt
         
         if [ ! -f "$DIRNAME/deps-$ARCH_OPTION/shaderc-deps.stamp" ]; then
             ./utils/git-sync-deps
@@ -310,9 +313,9 @@ build_deps()
                 -DCMAKE_BUILD_TYPE=Release                                     \
                 -DSHADERC_SKIP_TESTS=1 -DSHADERC_SKIP_EXAMPLES=1               \
                 -DSPIRV_HEADERS_SKIP_INSTALL=1 -DSPIRV_HEADERS_SKIP_EXAMPLES=1 \
-                -DSKIP_SPIRV_TOOLS_INSTALL=0 -DSPIRV_SKIP_TESTS=1              \
+                -DSKIP_SPIRV_TOOLS_INSTALL=1 -DSPIRV_SKIP_TESTS=1              \
                 -DSPIRV_SKIP_EXECUTABLES=1 -DENABLE_GLSLANG_BINARIES=0         \
-                -DENABLE_CTEST=0 -DGLSLANG_ENABLE_INSTALL=OFF -DSKIP_GLSLANG_INSTALL=ON &&
+                -DENABLE_CTEST=0 &&
         make -j $(($(nproc) + 1))
         # Strip debug symbol to make app bundle smaller
         llvm-strip --strip-debug "$DIRNAME/deps-$ARCH_OPTION/shaderc/libshaderc/libshaderc_combined.a"
