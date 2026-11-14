@@ -385,7 +385,9 @@ build_deps()
             echo "Compiling $ARCH_OPTION libadrenotools"
             mkdir -p "$DIRNAME/deps-$ARCH_OPTION/libadrenotools"
             mkdir -p "$DIRNAME/mesa/arm64-v8a"
-            git clone "$DIRNAME/../lib/libadrenotools" "$DIRNAME/deps-$ARCH_OPTION/libadrenotools"
+            # the dependency tarball ships libadrenotools without src/ and its submodule, so fetch it upstream
+            rm -rf "$DIRNAME/deps-$ARCH_OPTION/libadrenotools"
+            git clone --recursive https://github.com/bylaws/libadrenotools.git "$DIRNAME/deps-$ARCH_OPTION/libadrenotools"
 
             cd "$DIRNAME/deps-$ARCH_OPTION/libadrenotools"
             git submodule update --init
