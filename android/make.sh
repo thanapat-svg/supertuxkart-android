@@ -456,7 +456,8 @@ export ANDROID_HOME="$SDK_PATH"
           -Pcpu_core="$CPU_CORE"                         \
           $GRADLE_BUILD_TYPE
 
-if [ "$GRADLE_BUILD_TYPE" = "assembleRelease" ]; then
+# STK_SKIP_BUNDLE=1: only build the APK, not the Play Store bundle
+if [ "$GRADLE_BUILD_TYPE" = "assembleRelease" ] && [ -z "$STK_SKIP_BUNDLE" ]; then
 ./gradlew -Pcompile_sdk_version="$COMPILE_SDK_VERSION"   \
           -Pmin_sdk_version="$STK_MIN_ANDROID_SDK"       \
           -Ptarget_sdk_version="$STK_TARGET_ANDROID_SDK" \

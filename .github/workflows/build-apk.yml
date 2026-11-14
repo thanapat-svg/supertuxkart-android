@@ -80,6 +80,7 @@ jobs:
           BUILD_TYPE: beta
           PROJECT_VERSION: "1.4"
           BUILD_TOOLS_VER: 31.0.0
+          STK_SKIP_BUNDLE: 1
           PROJECT_CODE: ${{ github.run_number }}
           STK_KEYSTORE: ${{ github.workspace }}/android/stk-release.keystore
           STK_STOREPASS: assaultcube
