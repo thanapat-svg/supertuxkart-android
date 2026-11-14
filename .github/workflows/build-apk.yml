@@ -1,0 +1,87 @@
+name: Build APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      NDK_VER: 28.1.13356709
+      VERSION_NAME: android.${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq autoconf automake make python3 python3-packaging python3-mako flex bison \
+            imagemagick cmake meson vorbis-tools pngquant advancecomp libjpeg-turbo-progs optipng > /dev/null
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install NDK
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$NDK_VER" > /dev/null
+
+      - name: Fetch dependencies and assets
+        run: |
+          curl -fsSL -o deps.tar.xz https://github.com/supertuxkart/dependencies/releases/download/preview/dependencies-android-src.tar.xz
+          tar -xf deps.tar.xz -C lib
+          ls lib
+          git clone --depth 1 https://github.com/supertuxkart/stk-assets-mobile.git ../stk-assets
+          du -sh ../stk-assets
+
+      - name: Cache built dependencies
+        uses: actions/cache@v4
+        with:
+          path: android/deps-arm64-v8a
+          key: stk-deps-arm64-${{ env.NDK_VER }}-${{ hashFiles('android/make_deps.sh') }}
+
+      - name: Build APK
+        working-directory: android
+        env:
+          COMPILE_ARCH: aarch64
+          BUILD_TYPE: beta
+          STK_KEYSTORE: ${{ github.workspace }}/android/stk-release.keystore
+          STK_STOREPASS: assaultcube
+          STK_ALIAS: assaultcube
+        run: |
+          ln -sfn "$ANDROID_HOME" android-sdk
+          ln -sfn "$ANDROID_HOME/ndk" android-ndk
+          ./generate_assets.sh > /tmp/assets.log 2>&1 || { tail -50 /tmp/assets.log; exit 1; }
+          tail -5 /tmp/assets.log
+          ./make_deps.sh -j$(nproc)
+          ./make.sh -j$(nproc)
+          find . -name "*.apk" -path "*outputs*" | xargs ls -lh
+
+      - name: Collect APK
+        run: |
+          mkdir -p out
+          APK=$(find android -name "*.apk" -path "*outputs*" | grep -i release | head -1)
+          cp "$APK" "out/SuperTuxKart-${VERSION_NAME}.apk"
+          BT="$ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools | sort -V | tail -1)"
+          "$BT/apksigner" verify --print-certs "out/SuperTuxKart-${VERSION_NAME}.apk" | head -3
+          ls -lh out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SuperTuxKart-Android
+          path: out/*.apk
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.VERSION_NAME }}
+          name: SuperTuxKart ${{ env.VERSION_NAME }}
+          body: |
+            APK build from commit ${{ github.sha }} (arm64).
+            Download the .apk below and install it on your phone.
+          files: out/*.apk
